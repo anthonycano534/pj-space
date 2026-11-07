@@ -1,6 +1,7 @@
 package com.pjspace.launcher
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -32,7 +33,7 @@ import java.time.format.TextStyle
 import java.time.temporal.WeekFields
 import java.util.Locale
 
-@Composable fun MonthlyCalendar() {
+@Composable fun MonthlyCalendar(marks: Map<String,ImportantDay> = emptyMap(), editing: Boolean = false, onDay: (LocalDate)->Unit = {}) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var today by remember { mutableStateOf(LocalDate.now()) }
     var offset by remember { mutableIntStateOf(0) }
@@ -61,7 +62,9 @@ import java.util.Locale
                     val date=days[week*7+column]
                     Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment=Alignment.Center) {
                         if (date != null) Box(Modifier.size(minOf(rowHeight-2.dp,32.dp).coerceAtLeast(4.dp))
-                            .background(if(date==today)Color.White else Color.Transparent,CircleShape)
+                            .background(if(date==today)Color.White else if(marks.containsKey(date.toString()))Color.White.copy(alpha=.25f) else Color.Transparent,CircleShape)
+                            .then(if(date==today && marks.containsKey(date.toString())) Modifier.border(3.dp,Color.Gray,CircleShape) else Modifier)
+                            .clickable(enabled=editing || marks.containsKey(date.toString())){onDay(date)}
                             .semantics { contentDescription = date.toString() + if(date==today) ", hoy" else "" }, contentAlignment=Alignment.Center) {
                             Text(date.dayOfMonth.toString(), color=if(date==today)Color.Black else Color.White, fontSize=13.sp)
                         }

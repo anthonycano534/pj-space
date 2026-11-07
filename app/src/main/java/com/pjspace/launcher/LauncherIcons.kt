@@ -13,8 +13,8 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.cos
 import kotlin.math.sin
 
-@Composable fun LauncherIcon(settings: Boolean) {
-    Canvas(Modifier.size(34.dp)) {
+@Composable fun LauncherIcon(settings: Boolean, modifier: Modifier = Modifier.size(34.dp)) {
+    Canvas(modifier) {
         val unit = size.minDimension / 24f
         if (settings) {
             val path = Path()

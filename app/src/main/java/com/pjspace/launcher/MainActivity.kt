@@ -5,6 +5,8 @@ import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.Canvas
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -64,6 +66,8 @@ class MainActivity : ComponentActivity() {
     private var page by mutableStateOf("Inicio")
     private var homeRequest by mutableIntStateOf(0)
     private var apps by mutableStateOf(emptyList<Pair<String, ComponentName>>())
+    private var aliases by mutableStateOf<Map<String,String>>(emptyMap())
+    private var hidden by mutableStateOf<Set<String>>(emptySet())
     private var appOrder by mutableStateOf<List<String>?>(null)
     private val widgetHost by lazy { AppWidgetHost(this, 1024) }
     private var widgetListening = false
@@ -112,7 +116,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         // Own clocks and notes never start the external host; only selected external widgets do.
-        if (listOf(LEFT_DESKTOP, CENTRAL_DESKTOP).any { desktop -> loadTiles(desktop).any { it.kind.startsWith("Widget:") } }) {
+        if (listOf(EXTRA_DESKTOP, LEFT_DESKTOP, CENTRAL_DESKTOP).any { desktop -> loadTiles(desktop).any { it.kind.startsWith("Widget:") } }) {
             widgetHost.startListening(); widgetListening = true
         }
     }
@@ -127,6 +131,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge(statusBarStyle=SystemBarStyle.dark(android.graphics.Color.BLACK),navigationBarStyle=SystemBarStyle.dark(android.graphics.Color.BLACK))
         if(Build.VERSION.SDK_INT>=29)window.isNavigationBarContrastEnforced=false
         appOrder=try { if(prefs.contains("app-order")) { val a=JSONArray(prefs.getString("app-order","[]"));(0 until a.length()).map{a.getString(it)} } else null } catch(_:Exception){null}
+        aliases=try { val o=JSONObject(prefs.getString("app-aliases","{}")?:"{}");o.keys().asSequence().associateWith{o.getString(it)} }catch(_:Exception){emptyMap()}
+        hidden=prefs.getStringSet("hidden-apps",emptySet()).orEmpty().toSet()
         pendingWidget = savedInstanceState?.getInt("pendingWidget", -1) ?: -1
         pendingWidgetDesktop = savedInstanceState?.getInt("pendingWidgetDesktop", CENTRAL_DESKTOP) ?: CENTRAL_DESKTOP
         setContent {
@@ -186,7 +192,7 @@ class MainActivity : ComponentActivity() {
                         if(o.has("fontSizeSp"))o.getDouble("fontSizeSp").toFloat()else null,
                         if(o.has("iconKey"))o.getString("iconKey")else null,
                         if(o.has("appComponent"))o.getString("appComponent")else null,
-                        if(o.has("label"))o.getString("label")else null).fit()
+                        if(o.has("label"))o.getString("label")else null,o.optString("textAlignment","left"),o.optString("fontFamily","default")).fit()
                 }
             }
         }catch(_:Exception){defaultTiles(desktop)}
@@ -200,6 +206,7 @@ class MainActivity : ComponentActivity() {
         tiles.forEach { tile ->
             val o=JSONObject().put("id",tile.id).put("kind",tile.kind).put("x",tile.x).put("y",tile.y).put("w",tile.w).put("h",tile.h)
             tile.fontSizeSp?.let{o.put("fontSizeSp",it)};tile.iconKey?.let{o.put("iconKey",it)}
+            o.put("textAlignment",tile.textAlignment).put("fontFamily",tile.fontFamily)
             tile.appComponent?.let{o.put("appComponent",it)};tile.label?.let{o.put("label",it)};a.put(o)
         }
         prefs.edit().putString(desktopStorageKey(desktop),a.toString()).putBoolean("split-bars-$desktop",true).apply()
@@ -222,13 +229,18 @@ class MainActivity : ComponentActivity() {
         val density=LocalDensity.current
         val bottomInset=with(density){if(WindowInsets.areNavigationBarsVisible)WindowInsets.navigationBarsIgnoringVisibility.getBottom(this).toDp()else 0.dp}
         val topInset=with(density){if(WindowInsets.areStatusBarsVisible)WindowInsets.statusBarsIgnoringVisibility.getTop(this).toDp()else 0.dp}
-        val layouts = remember {
-            mutableStateMapOf(LEFT_DESKTOP to loadTiles(LEFT_DESKTOP), CENTRAL_DESKTOP to loadTiles(CENTRAL_DESKTOP))
-        }
-        val pager = rememberPagerState(initialPage = CENTRAL_DESKTOP, pageCount = { 3 })
-        val scope = rememberCoroutineScope()
-        var lastEditableDesktop by remember { mutableIntStateOf(CENTRAL_DESKTOP) }
-        LaunchedEffect(pager.settledPage) { if (pager.settledPage != APPS_DESKTOP) lastEditableDesktop = pager.settledPage }
+        var extra by remember { mutableStateOf(prefs.getBoolean("extra-desktop",false)) }
+        val pages=desktopPages(extra)
+        val layouts=remember {mutableStateMapOf(EXTRA_DESKTOP to loadTiles(EXTRA_DESKTOP),LEFT_DESKTOP to loadTiles(LEFT_DESKTOP),CENTRAL_DESKTOP to loadTiles(CENTRAL_DESKTOP))}
+        val pager=rememberPagerState(initialPage=pages.indexOf(CENTRAL_DESKTOP),pageCount={pages.size})
+        val desktop=pages.getOrElse(pager.currentPage){CENTRAL_DESKTOP}
+        val scope=rememberCoroutineScope()
+        var clipboard by remember {mutableStateOf<Tile?>(null)}
+        var grid by remember {mutableStateOf(prefs.getBoolean("edit-grid",false))}
+        var fixedEditor by remember {mutableStateOf(false)};var fixedRevision by remember {mutableIntStateOf(0)}
+        var draftOrder by remember {mutableStateOf<List<String>?>(null)}
+        LaunchedEffect(editing){if(editing)draftOrder=orderedApps().map{it.second.flattenToString()}else draftOrder=null}
+        fun finishEditing(){draftOrder?.let{saveAppOrder(it)};editing=false}
         var selectedGesture by remember { mutableStateOf<String?>(null) }
         var selectedShortcut by remember { mutableStateOf<String?>(null) }
         var orderingApps by remember { mutableStateOf(false) }
@@ -247,7 +259,7 @@ class MainActivity : ComponentActivity() {
             focus.clearFocus(force = true); keyboard?.hide()
             editing = false
             page = "Inicio"
-            scope.launch { pager.animateScrollToPage(desktop) }
+            scope.launch { pager.animateScrollToPage(pages.indexOf(desktop).coerceAtLeast(0)) }
         }
         fun openCorner(name: String) {
             focus.clearFocus(force = true); keyboard?.hide()
@@ -256,7 +268,7 @@ class MainActivity : ComponentActivity() {
         }
         LaunchedEffect(homeRequest) {
             focus.clearFocus(force = true); keyboard?.hide()
-            editing = false; pager.scrollToPage(CENTRAL_DESKTOP)
+            editing = false; pager.scrollToPage(pages.indexOf(CENTRAL_DESKTOP))
         }
         LaunchedEffect(addedWidget) {
             addedWidget?.let { id ->
@@ -269,9 +281,9 @@ class MainActivity : ComponentActivity() {
         // Always consume Back. At the central desktop it must never finish the HOME activity.
         BackHandler(enabled = true) {
             focus.clearFocus(force = true); keyboard?.hide()
-            when (launcherBackAction(selectedGesture != null || selectedShortcut != null, editing, page == "Ajustes", pager.currentPage)) {
+            when (launcherBackAction(selectedGesture != null || selectedShortcut != null, editing, page == "Ajustes", desktop)) {
                 LauncherBackAction.CLOSE_DIALOG -> { selectedGesture = null; selectedShortcut = null }
-                LauncherBackAction.FINISH_EDITING -> editing = false
+                LauncherBackAction.FINISH_EDITING -> finishEditing()
                 LauncherBackAction.OPEN_HOME -> goTo(CENTRAL_DESKTOP)
                 LauncherBackAction.STAY_HOME -> Unit
             }
@@ -291,6 +303,10 @@ class MainActivity : ComponentActivity() {
                         val label = if (binding.isBlank()) "Sin asignar" else apps.find { it.second.flattenToString() == binding }?.first ?: "App no disponible · volver a elegir"
                         OutlinedButton(onClick = { selectedGesture = gesture }, modifier = Modifier.fillMaxWidth()) { Text("$gesture: $label") }
                     }
+                    item { OutlinedButton(onClick={fixedEditor=true}){Text("Iconos fijos: tamaño y posición")} }
+                    item { if(!extra)OutlinedButton(onClick={extra=true;prefs.edit().putBoolean("extra-desktop",true).apply();scope.launch{pager.scrollToPage(desktopPages(true).indexOf(APPS_DESKTOP))}}){Text("Añadir escritorio a la izquierda")} }
+                    item { Text("Aplicaciones ocultas") }
+                    items(apps.filter{it.second.flattenToString() in hidden}) { app -> TextButton(onClick={hidden=hidden-app.second.flattenToString();prefs.edit().putStringSet("hidden-apps",hidden).apply()}){Text("Mostrar: "+(aliases[app.second.flattenToString()]?:app.first))} }
                     item { Text("Accesos de las esquinas inferiores") }
                     items(listOf("Teléfono", "Cámara")) { name ->
                         val binding = cornerApps[name].orEmpty()
@@ -304,14 +320,16 @@ class MainActivity : ComponentActivity() {
             }
         } else {
             Box(Modifier.fillMaxSize().displayCutoutPadding()) {
-                HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), userScrollEnabled = !editing, key = { it }) { index ->
+                HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), userScrollEnabled = true, key = { pages[it] }) { pageIndex ->
+                    val index=pages[pageIndex]
                     if (index == APPS_DESKTOP) {
-                        Box(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 80.dp+topInset, bottom = 80.dp+bottomInset)) {
-                            AppList(onOpen = { app -> open(Intent.makeMainActivity(app)); goTo(CENTRAL_DESKTOP) }, isActive = pager.settledPage == APPS_DESKTOP && !pager.isScrollInProgress)
+                        Box(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 80.dp+topInset, bottom = 8.dp+bottomInset)) {
+                            AppList(onOpen = { app -> open(Intent.makeMainActivity(app)); goTo(CENTRAL_DESKTOP) }, isActive = pages[pager.settledPage] == APPS_DESKTOP && !pager.isScrollInProgress, editing=editing,
+                                order=draftOrder, onMove={from,to-> val list=draftOrder?:orderedApps().map{it.second.flattenToString()};draftOrder=moveItem(list,list.indexOf(from),list.indexOf(to))})
                         }
                     } else {
                         DesktopCanvas(
-                            tiles = layouts[index].orEmpty(), editing = editing,
+                            tiles = layouts[index].orEmpty(), editing = editing, grid=grid, onCopy={clipboard=it},
                             onTilesChange = { tiles, persist -> updateLayout(index, tiles, persist) },
                             onVerticalGesture = { gesture ->
                                 val component = ComponentName.unflattenFromString(bindings[gesture].orEmpty())
@@ -320,33 +338,21 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
-                IconButton(
-                    onClick = {
-                        focus.clearFocus(force = true); keyboard?.hide()
-                        val target = editingTargetPage(pager.settledPage, lastEditableDesktop)
-                        editing = !editing
-                        scope.launch { pager.scrollToPage(target) }
-                    },
-                    modifier = Modifier.align(Alignment.TopStart).zIndex(20f).padding(start=8.dp,top=8.dp+topInset).size(64.dp)
-                        .background(Color.Black, CircleShape).semantics { contentDescription = if (editing) "Terminar edición" else "Modo edición" }
-                ) { LauncherIcon(settings = false) }
-                IconButton(
-                    onClick = { focus.clearFocus(force = true); keyboard?.hide(); editing = false; page = "Ajustes" },
-                    modifier = Modifier.align(Alignment.TopEnd).zIndex(20f).padding(end=8.dp,top=8.dp+topInset).size(64.dp)
-                        .background(Color.Black, CircleShape).semantics { contentDescription = "Ajustes" }
-                ) { LauncherIcon(settings = true) }
-                IconButton(onClick = { openCorner("Teléfono") },
-                    modifier = Modifier.align(Alignment.BottomStart).zIndex(20f).padding(start=8.dp,bottom=8.dp+bottomInset).size(64.dp).background(Color.Black, CircleShape)
-                        .semantics { contentDescription = "Acceso inferior izquierdo" }) { AccessSymbol(cornerIcons["Teléfono"]?:"phone") }
-                IconButton(onClick = { openCorner("Cámara") },
-                    modifier = Modifier.align(Alignment.BottomEnd).zIndex(20f).padding(end=8.dp,bottom=8.dp+bottomInset).size(64.dp).background(Color.Black, CircleShape)
-                        .semantics { contentDescription = "Acceso inferior derecho" }) { AccessSymbol(cornerIcons["Cámara"]?:"camera") }
+                if(desktop==APPS_DESKTOP) {
+                    Text("Aplicaciones",Modifier.align(Alignment.TopCenter).padding(top=30.dp+topInset),style=MaterialTheme.typography.titleLarge)
+                    FixedIcon(prefs,"brush",fixedRevision,topInset,bottomInset,onClick={focus.clearFocus(force=true);keyboard?.hide();if(editing)finishEditing()else editing=true}) {LauncherIcon(settings=false,modifier=Modifier.fillMaxSize())}
+                    FixedIcon(prefs,"gear",fixedRevision,topInset,bottomInset,onClick={focus.clearFocus(force=true);keyboard?.hide();if(editing)finishEditing();page="Ajustes"}) {LauncherIcon(settings=true,modifier=Modifier.fillMaxSize())}
+                }
+                if(desktop==CENTRAL_DESKTOP) {
+                    FixedIcon(prefs,"phone",fixedRevision,topInset,bottomInset,onClick={openCorner("Teléfono")}){AccessSymbol(cornerIcons["Teléfono"]?:"phone",Modifier.fillMaxSize())}
+                    FixedIcon(prefs,"camera",fixedRevision,topInset,bottomInset,onClick={openCorner("Cámara")}){AccessSymbol(cornerIcons["Cámara"]?:"camera",Modifier.fillMaxSize())}
+                }
                 if (editing) {
-                    val desktop = pager.currentPage
-                    Surface(Modifier.align(Alignment.BottomCenter).padding(start = 8.dp, end = 8.dp, bottom = 80.dp+bottomInset)
-                        .border(1.dp, Color.White, MaterialTheme.shapes.large), shape = MaterialTheme.shapes.large, color = Color.Black) {
-                        Row(Modifier.horizontalScroll(rememberScrollState())) {
-                            TextButton(onClick = { editing = false }) { Text("Listo") }
+                    MovableEditBar(prefs) {
+                            TextButton(onClick = { finishEditing() }) { Text("Listo") }
+                            if(desktop!=APPS_DESKTOP) {
+                            TextButton(onClick={grid=!grid;prefs.edit().putBoolean("edit-grid",grid).apply()}){Text(if(grid)"Cuadrícula ✓"else"Cuadrícula")}
+                            TextButton(enabled=clipboard!=null,onClick={clipboard?.let{updateLayout(desktop,layouts[desktop].orEmpty()+it.duplicate("copy-${System.nanoTime()}"))}}){Text("Pegar")}
                             Box {
                                 TextButton(onClick={addingComponent=true}){Text("Añadir componente")}
                                 DropdownMenu(addingComponent,{addingComponent=false}){
@@ -359,7 +365,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
-                            TextButton(onClick={orderingApps=true}){Text("Orden de apps")}
+
                             TextButton(onClick = { addWidget(desktop) }) { Text("+ Widget externo") }
                         }
                     }
@@ -383,11 +389,11 @@ class MainActivity : ComponentActivity() {
                 selectedShortcut = null
             })
         }
-        if(editing&&orderingApps)AppOrderDialog(apps.map{it.second.flattenToString() to it.first},orderedApps().map{it.second.flattenToString()},appOrder!=null,
-            onSave={saveAppOrder(it);orderingApps=false},onDismiss={orderingApps=false})
+        if(fixedEditor)FixedIconsEditor(prefs,onDismiss={fixedEditor=false},onSaved={fixedRevision++;fixedEditor=false})
+
     }
 
-    @Composable private fun AppList(onOpen: (ComponentName) -> Unit, isActive: Boolean = true) {
+    @Composable private fun AppList(onOpen: (ComponentName) -> Unit, isActive: Boolean = true, editing:Boolean=false, order:List<String>?=null, onMove:(String,String)->Unit={_,_->}) {
         var query by remember { mutableStateOf("") }
         var searching by remember { mutableStateOf(false) }
         val focus = LocalFocusManager.current
@@ -397,20 +403,26 @@ class MainActivity : ComponentActivity() {
         LaunchedEffect(isActive) { if (!isActive) closeSearch() }
         LaunchedEffect(searching) { if (searching && isActive) { requester.requestFocus(); keyboard?.show() } }
         BackHandler(searching && isActive) { closeSearch() }
-        val filtered = orderedApps().filter { it.first.contains(query, true) || it.second.packageName.contains(query, true) }
+        var renaming by remember{mutableStateOf<ComponentName?>(null)};var renameText by remember{mutableStateOf("")}
+        val byId=apps.associateBy{it.second.flattenToString()}
+        val filtered = orderedAppIds(apps.map{it.second.flattenToString()},order?:appOrder).mapNotNull{byId[it]}.filter { appMatches(it.first,aliases[it.second.flattenToString()].orEmpty(),it.second.packageName,it.second.flattenToString() in hidden,query) }
+        LaunchedEffect(editing){if(editing)closeSearch()}
         Column(Modifier.fillMaxSize()) {
             if (searching) OutlinedTextField(query, { query = it }, label = { Text("Buscar aplicación") }, singleLine = true,
                 modifier = Modifier.fillMaxWidth().focusRequester(requester).onFocusChanged { if (it.isFocused && searching) keyboard?.show() },
                 leadingIcon = { SearchIcon() },
                 trailingIcon = { IconButton(onClick = { closeSearch() }, modifier = Modifier.semantics { contentDescription = "Cerrar búsqueda" }) { Text("×") } })
-            else OutlinedButton(onClick = { searching = true }, modifier = Modifier.fillMaxWidth().height(56.dp).semantics { contentDescription = "Buscar aplicaciones" }, shape = RoundedCornerShape(50)) { SearchIcon() }
-            LazyColumn(Modifier.weight(1f)) {
-                items(filtered, key = { it.second.flattenToString() }) { app ->
-                    TextButton(onClick = { closeSearch(); onOpen(app.second) }, modifier = Modifier.fillMaxWidth()) { Text(app.first) }
+            else OutlinedButton(enabled=!editing,onClick = { searching = true }, modifier = Modifier.fillMaxWidth().height(56.dp).semantics { contentDescription = "Buscar aplicaciones" }, shape = RoundedCornerShape(50)) { SearchIcon() }
+            Box(Modifier.weight(1f)) {AppRows(filtered,editing,aliases,onOpen={closeSearch();onOpen(it)},onMove=onMove,onAction={action,app->
+                when(action){
+                    "Información de app"->open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:${app.packageName}")))
+                    "Desinstalar"->open(Intent(Intent.ACTION_DELETE,Uri.parse("package:${app.packageName}")))
+                    "Ocultar"->{hidden=hidden+app.flattenToString();prefs.edit().putStringSet("hidden-apps",hidden).apply()}
+                    "Renombrar"->{closeSearch();renaming=app;renameText=aliases[app.flattenToString()]?:apps.find{it.second==app}?.first.orEmpty()}
                 }
-                if (filtered.isEmpty()) item { Text("No se encontraron aplicaciones.") }
-            }
+            })}
         }
+        renaming?.let { app -> AlertDialog(onDismissRequest={renaming=null},title={Text("Nombre en PJ Space")},text={OutlinedTextField(renameText,{renameText=it},label={Text("Nombre")},singleLine=true)},confirmButton={TextButton(onClick={val id=app.flattenToString();aliases=if(renameText.isBlank())aliases-id else aliases+(id to renameText.trim());prefs.edit().putString("app-aliases",JSONObject(aliases).toString()).apply();focus.clearFocus(force=true);keyboard?.hide();renaming=null}){Text("Guardar")}},dismissButton={TextButton(onClick={renaming=null}){Text("Cancelar")}}) }
     }
 
     @Composable private fun AppPicker(gesture: String, onDismiss: () -> Unit, onSelect: (ComponentName?) -> Unit, resetLabel: String = "Sin asignar") {
@@ -437,7 +449,7 @@ class MainActivity : ComponentActivity() {
         }},confirmButton={TextButton(onClick={onSave(size)}){Text("Guardar")}},dismissButton={TextButton(onClick=onDismiss){Text("Cancelar")}})
     }
 
-    @Composable private fun AppTileEditor(initial:Tile,cornerDefault:String?=null,onSave:(Tile)->Unit,onDismiss:()->Unit,onDelete:(()->Unit)?=null) {
+    @Composable private fun AppTileEditor(initial:Tile,cornerDefault:String?=null,onSave:(Tile)->Unit,onDismiss:()->Unit,onDelete:(()->Unit)?=null,onCopy:(()->Unit)?=null) {
         var label by remember{mutableStateOf(initial.label.orEmpty())}
         var app by remember{mutableStateOf(initial.appComponent.orEmpty())}
         var icon by remember{mutableStateOf(initial.iconKey?:"star")}
@@ -455,18 +467,23 @@ class MainActivity : ComponentActivity() {
                 }
                 if(initial.kind=="Barra")Box(Modifier.fillMaxWidth().height(52.dp)){ActionBar(label){}}
                 if(cornerDefault!=null)TextButton(onClick={icon=cornerDefault;app=""}){Text("Restaurar icono y acción predeterminados")}
+                if(onCopy!=null)TextButton(onClick={release();onCopy()}){Text("Copiar acceso o barra")}
                 if(onDelete!=null)TextButton(onClick={release();onDelete()}){Text("Eliminar componente")}
             }
         },confirmButton={TextButton(onClick={release();onSave(initial.copy(label=label,appComponent=app,iconKey=if(initial.kind=="Acceso")icon else initial.iconKey))}){Text("Guardar")}},
             dismissButton={TextButton(onClick={release();onDismiss()}){Text("Cancelar")}})
     }
 
-    @Composable private fun DesktopCanvas(tiles:List<Tile>,editing:Boolean,onTilesChange:(List<Tile>,Boolean)->Unit,onVerticalGesture:(String)->Unit) {
+    @Composable private fun DesktopCanvas(tiles:List<Tile>,editing:Boolean,grid:Boolean,onCopy:(Tile)->Unit,onTilesChange:(List<Tile>,Boolean)->Unit,onVerticalGesture:(String)->Unit) {
         val latestTiles by rememberUpdatedState(tiles);val latestChange by rememberUpdatedState(onTilesChange);val latestGesture by rememberUpdatedState(onVerticalGesture)
-        val notes=remember{mutableStateMapOf<String,String>()};val tasks=remember{mutableStateMapOf<String,List<TodoItem>>()}
+        val notes=remember{mutableStateMapOf<String,String>()};val blocks=remember{mutableStateMapOf<String,List<TodoBlock>>()}
+        val marks=remember{mutableStateMapOf<String,Map<String,ImportantDay>>()};var selectedDay by remember{mutableStateOf<Pair<String,java.time.LocalDate>?>(null)}
+        fun getBlocks(id:String):List<TodoBlock> = blocks[id]?:readBlocks(prefs.getString("blocks-$id",null))?:migratedBlocks(loadTodos(id)).also{prefs.edit().putString("blocks-$id",writeBlocks(it)).apply()}
+        fun setBlocks(id:String,value:List<TodoBlock>){blocks[id]=value;prefs.edit().putString("blocks-$id",writeBlocks(value)).apply()}
+        fun getMarks(id:String)=marks[id]?:readMarks(prefs.getString("calendar-$id",null))
         var editorId by remember{mutableStateOf<String?>(null)}
         val focus=LocalFocusManager.current;val keyboard=LocalSoftwareKeyboardController.current
-        fun closeEditor(){focus.clearFocus(force=true);keyboard?.hide();editorId=null}
+        fun closeEditor(){focus.clearFocus(force=true);keyboard?.hide();editorId=null;selectedDay=null}
         fun replace(tile:Tile){latestChange(latestTiles.map{if(it.id==tile.id)tile else it},true)}
         fun remove(id:String){latestTiles.find{it.id==id}?.kind?.substringAfter("Widget:","")?.toIntOrNull()?.let{widgetHost.deleteAppWidgetId(it)};latestChange(latestTiles.filterNot{it.id==id},true);closeEditor()}
         fun launchTile(tile:Tile){
@@ -481,6 +498,7 @@ class MainActivity : ComponentActivity() {
                 var distance=0f
                 detectVerticalDragGestures(onDragStart={distance=0f},onDragCancel={distance=0f},onDragEnd={verticalGestureDirection(distance,GESTURE_DISTANCE_DP.dp.toPx())?.let{latestGesture(it)};distance=0f}){change,amount->change.consume();distance+=amount}
             }})
+            if(editing&&grid)Canvas(Modifier.fillMaxSize()){for(i in 1 until 20){drawLine(Color.White.copy(alpha=.14f),androidx.compose.ui.geometry.Offset(size.width*i/20,0f),androidx.compose.ui.geometry.Offset(size.width*i/20,size.height));drawLine(Color.White.copy(alpha=.14f),androidx.compose.ui.geometry.Offset(0f,size.height*i/20),androidx.compose.ui.geometry.Offset(size.width,size.height*i/20))}}
             tiles.forEach { tile -> key(tile.id) {
                 fun update(dx:Float,dy:Float,resize:Boolean){latestChange(latestTiles.map{current->if(current.id!=tile.id)current else if(resize)current.copy(w=current.w+dx/wp,h=current.h+dy/hp).fit()else current.copy(x=current.x+dx/wp,y=current.y+dy/hp).fit()},false)}
                 val decorated=editing||tile.kind in listOf("Nota","Calendario","Pendientes")
@@ -504,31 +522,32 @@ class MainActivity : ComponentActivity() {
                                         if(label.isNotBlank())Text(label,fontSize=12.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
                                     }
                                 }
-                                tile.kind=="Calendario" -> MonthlyCalendar()
-                                tile.kind=="Pendientes" -> {
-                                    val list=tasks[tile.id]?:loadTodos(tile.id)
-                                    TodoPanel(list,!editing){id->val updated=list.map{if(it.id==id)it.copy(done=!it.done)else it};tasks[tile.id]=updated;saveTodos(tile.id,updated)}
-                                }
-                                else -> NotePreview(notes[tile.id]?:prefs.getString("note-${tile.id}","").orEmpty(),componentFontSize(tile.kind,tile.fontSizeSp))
+                                tile.kind=="Calendario" -> MonthlyCalendar(getMarks(tile.id),editing){selectedDay=tile.id to it}
+                                tile.kind=="Pendientes" -> BlockPanel(getBlocks(tile.id),editing){setBlocks(tile.id,it)}
+                                else -> NotePreview(notes[tile.id]?:prefs.getString("note-${tile.id}","").orEmpty(),componentFontSize(tile.kind,tile.fontSizeSp),tile.textAlignment,tile.fontFamily)
                             }
                         }
                         if(editing) {
                             Row(Modifier.align(Alignment.TopStart).fillMaxWidth().background(Color.Black.copy(alpha=.9f)),verticalAlignment=Alignment.CenterVertically) {
-                                Text("↕",fontSize=20.sp,modifier=Modifier.size(32.dp).pointerInput(tile.id,wp,hp){detectDragGestures(onDragEnd={latestChange(latestTiles,true)},onDragCancel={latestChange(latestTiles,true)}){change,delta->change.consume();update(delta.x,delta.y,false)}})
-                                if(tile.kind in listOf("Nota","Reloj","Barra","Acceso","Pendientes"))TextButton(onClick={editorId=tile.id},contentPadding=PaddingValues(0.dp),modifier=Modifier.height(32.dp).width(48.dp)){Text("Editar",fontSize=11.sp)}
+                                Text("↕",fontSize=20.sp,modifier=Modifier.size(32.dp).pointerInput(tile.id,wp,hp,grid){detectDragGestures(onDragEnd={latestChange(if(grid)latestTiles.map{if(it.id==tile.id)it.snapped()else it}else latestTiles,true)},onDragCancel={latestChange(if(grid)latestTiles.map{if(it.id==tile.id)it.snapped()else it}else latestTiles,true)}){change,delta->change.consume();update(delta.x,delta.y,false)}})
+                                if(tile.kind in listOf("Nota","Reloj","Barra","Acceso","Pendientes"))TextButton(onClick={editorId=tile.id},contentPadding=PaddingValues(0.dp),modifier=Modifier.height(32.dp).width(40.dp)){Text("Editar",fontSize=11.sp)}
                                 if(tile.kind !in listOf("Barra","Acceso"))TextButton(onClick={remove(tile.id)},contentPadding=PaddingValues(0.dp),modifier=Modifier.size(32.dp)){Text("×")}
                             }
-                            Text("↘",fontSize=24.sp,modifier=Modifier.align(Alignment.BottomEnd).size(32.dp).background(Color.Black).pointerInput(tile.id,wp,hp){detectDragGestures(onDragEnd={latestChange(latestTiles,true)},onDragCancel={latestChange(latestTiles,true)}){change,delta->change.consume();update(delta.x,delta.y,true)}})
+                            Text("↘",fontSize=24.sp,modifier=Modifier.align(Alignment.BottomEnd).size(32.dp).background(Color.Black).pointerInput(tile.id,wp,hp,grid){detectDragGestures(onDragEnd={latestChange(if(grid)latestTiles.map{if(it.id==tile.id)it.snapped()else it}else latestTiles,true)},onDragCancel={latestChange(if(grid)latestTiles.map{if(it.id==tile.id)it.snapped()else it}else latestTiles,true)}){change,delta->change.consume();update(delta.x,delta.y,true)}})
                         }
                     }
                 }
             } }
         }
         if(editing)editorId?.let { id -> latestTiles.find{it.id==id}?.let { tile -> when(tile.kind) {
-            "Nota" -> NoteEditor(notes[id]?:prefs.getString("note-$id","").orEmpty(),componentFontSize("Nota",tile.fontSizeSp),onSave={text,size->notes[id]=text;prefs.edit().putString("note-$id",text).apply();replace(tile.copy(fontSizeSp=size));closeEditor()},onDismiss={closeEditor()})
+            "Nota" -> NoteEditor(notes[id]?:prefs.getString("note-$id","").orEmpty(),componentFontSize("Nota",tile.fontSizeSp),tile.textAlignment,tile.fontFamily,onSave={text,size,alignment,family->notes[id]=text;prefs.edit().putString("note-$id",text).apply();replace(tile.copy(fontSizeSp=size,textAlignment=alignment,fontFamily=family));closeEditor()},onDismiss={closeEditor()})
             "Reloj" -> ClockEditor(componentFontSize("Reloj",tile.fontSizeSp),onSave={replace(tile.copy(fontSizeSp=it));closeEditor()},onDismiss={closeEditor()})
-            "Barra","Acceso" -> AppTileEditor(tile,onSave={replace(it);closeEditor()},onDismiss={closeEditor()},onDelete={remove(id)})
-            "Pendientes" -> TodoEditor(tasks[id]?:loadTodos(id),onSave={tasks[id]=it;saveTodos(id,it);closeEditor()},onDismiss={closeEditor()})
+            "Barra","Acceso" -> AppTileEditor(tile,onSave={replace(it);closeEditor()},onDismiss={closeEditor()},onDelete={remove(id)},onCopy={onCopy(tile);closeEditor()})
+            "Pendientes" -> BlocksEditor(getBlocks(id),onSave={setBlocks(id,it);closeEditor()},onDismiss={closeEditor()})
         } } }
+        selectedDay?.let{(id,date)->ImportantDayDialog(date,getMarks(id)[date.toString()],editing,onSave={value->val updated=if(value==null)getMarks(id)-date.toString()else getMarks(id)+(date.toString() to value);marks[id]=updated;prefs.edit().putString("calendar-$id",writeMarks(updated)).apply();focus.clearFocus(force=true);keyboard?.hide();selectedDay=null},onDismiss={focus.clearFocus(force=true);keyboard?.hide();selectedDay=null})}
+
     }
 }
+
+

@@ -6,6 +6,18 @@ import java.time.YearMonth
 
 const val GESTURE_DISTANCE_DP = 24f
 data class TodoItem(val id: String, val text: String, val done: Boolean = false)
+data class TodoBlock(val id: String, val name: String, val items: List<TodoItem>)
+data class ImportantDay(val title: String, val note: String)
+fun migratedBlocks(items: List<TodoItem>) = listOf(TodoBlock("legacy", "Pendientes", items))
+fun appMatches(original: String, alias: String, packageName: String, hidden: Boolean, query: String): Boolean =
+    if (query.isBlank()) !hidden else listOf(original, alias, packageName).any { it.contains(query.trim(), true) }
+fun Tile.snapped(): Tile {
+    val fitted=fit()
+    return fitted.copy(x=kotlin.math.round(fitted.x*20)/20, y=kotlin.math.round(fitted.y*20)/20,
+        w=(kotlin.math.round(fitted.w*20)/20).coerceAtLeast(if(kind=="Acceso").15f else .25f),
+        h=(kotlin.math.round(fitted.h*20)/20).coerceAtLeast(when(kind){"Barra"->.10f;"Acceso"->.10f;else->.20f})).fit()
+}
+fun Tile.duplicate(id: String) = copy(id=id, x=(x+.05f), y=(y+.05f)).fit()
 data class AccessIcon(val key: String, val name: String)
 val accessIcons = listOf(AccessIcon("plane", "Avión"), AccessIcon("book", "Libro"), AccessIcon("home", "Casa"),
     AccessIcon("work", "Trabajo"), AccessIcon("music", "Música"), AccessIcon("study", "Estudio"), AccessIcon("cart", "Compras"),

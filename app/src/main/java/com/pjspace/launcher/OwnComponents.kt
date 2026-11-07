@@ -2,6 +2,7 @@ package com.pjspace.launcher
 
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
@@ -120,17 +121,19 @@ import java.util.Locale
 }
 
 /** Home contains only text: no text input, focus target, IME or editable semantics. */
-@Composable fun NotePreview(text: String, fontSizeSp: Float = 18f) {
+@Composable fun NotePreview(text: String, fontSizeSp: Float = 18f, alignment: String = "left", family: String = "default") {
     Text(
         if (text.isBlank()) "Nota vacía" else text,
         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
         color = Color.White,
+        textAlign = noteAlign(alignment), fontFamily = noteFont(family),
         style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSizeSp.sp, lineHeight = (fontSizeSp * 1.45f).sp)
     )
 }
 
-@Composable fun NoteEditor(initialText: String, initialFontSize: Float, onSave: (String, Float) -> Unit, onDismiss: () -> Unit) {
+@Composable fun NoteEditor(initialText: String, initialFontSize: Float, initialAlignment: String = "left", initialFamily: String = "default", onSave: (String, Float, String, String) -> Unit, onDismiss: () -> Unit) {
     var draft by remember { mutableStateOf(initialText) }
+    var alignment by remember { mutableStateOf(initialAlignment) }; var family by remember { mutableStateOf(initialFamily) }
     var fontSize by remember { mutableFloatStateOf(componentFontSize("Nota", initialFontSize)) }
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -140,18 +143,23 @@ import java.util.Locale
         title = { Text("Editar nota") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                Row { listOf("left" to "Izq.", "center" to "Centro", "right" to "Der.").forEach { (key, label) -> TextButton(onClick={alignment=key}) { Text(if(alignment==key) "• $label" else label) } } }
+                Row(Modifier.horizontalScroll(rememberScrollState())) { listOf("default" to "Sistema", "sans" to "Sans", "serif" to "Serif", "mono" to "Mono").forEach { (key,label) -> TextButton(onClick={family=key}) { Text(if(family==key) "• $label" else label) } } }
                 Text("Tamaño del texto: ${fontSize.toInt()}")
                 Slider(value = fontSize, onValueChange = { fontSize = it }, valueRange = 12f..64f)
                 OutlinedTextField(
                 value = draft, onValueChange = { draft = it },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 320.dp),
                 label = { Text("Nota") }, placeholder = { Text("¿Qué necesitás resolver?") },
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize.sp, lineHeight = (fontSize * 1.45f).sp)
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign=noteAlign(alignment),fontFamily=noteFont(family),fontSize = fontSize.sp, lineHeight = (fontSize * 1.45f).sp)
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { focus.clearFocus(force = true); keyboard?.hide(); onSave(draft, fontSize) }) { Text("Guardar") } },
+        confirmButton = { TextButton(onClick = { focus.clearFocus(force = true); keyboard?.hide(); onSave(draft, fontSize, alignment, family) }) { Text("Guardar") } },
         dismissButton = { TextButton(onClick = { close() }) { Text("Cancelar") } }
     )
 }
 
+
+fun noteAlign(value:String) = when(value){ "center"->TextAlign.Center; "right"->TextAlign.Right; else->TextAlign.Left }
+fun noteFont(value:String) = when(value){ "sans"->FontFamily.SansSerif; "serif"->FontFamily.Serif; "mono"->FontFamily.Monospace; else->FontFamily.Default }

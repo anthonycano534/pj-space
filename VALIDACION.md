@@ -1,3 +1,13 @@
+# Validación de PJ Space 0.1.7
+
+- assembleDebug y testDebugUnitTest completados: 24 pruebas, cero fallos y errores.
+- Se cubren conservación de claves de escritorios, búsqueda de apps ocultas por nombre original/alias, migración de tareas y estados, copia independiente de accesos, cuadrícula dentro de límites y formato por nota, además de las pruebas anteriores.
+- APK comprobado: com.pjspace.launcher, versionName 0.1.7, versionCode 9, minSdk 26, targetSdk 36.
+- Firma comprobada: SHA-256 ab3fa8f3ba87a1ea6f58a052b1f9df4f4e4a0c9f5e1a2016c5775db5df039bf3, igual a las versiones oficiales anteriores.
+- Icono adaptativo presente en el APK. La imagen JPEG original del usuario se copia sin regenerarla; el recurso Android le reserva espacio para las máscaras del launcher.
+- lintDebug no pudo completarse sin conexión: faltan dependencias de su modelo de pruebas Android en la caché. Este fallo no fue de compilación del APK. La compilación y las pruebas se ejecutaron después por separado y completaron correctamente.
+- No se ejecutó esta interfaz en dispositivo o emulador. El acceso local a adb falla al crear su directorio de usuario; el emulador no dispone de aceleración en este entorno. No se midió rendimiento, batería ni memoria.
+- El arrastre, auto desplazamiento, teclado, menús Android, iconos/barras, rotación y actualización con datos reales requieren la prueba manual de CAMBIOS-0.1.7.md.
 # Validación · 7 de noviembre de 2026
 
 ## Componentes independientes y productividad · 0.1.6
@@ -68,3 +78,4 @@
 - Pendiente: prueba visual e interactiva en Android, selección HOME, widgets externos y sus tamaños/configuración, persistencia tras cierre y rotación, accesibilidad y consumo de recursos.
 
 Los archivos se crearon en una carpeta nueva. Se preservaron los proyectos existentes. El emulador se intentó iniciar en modo de solo lectura y sin guardar instantáneas.
+

@@ -1,7 +1,8 @@
 package com.pjspace.launcher
 
 data class Tile(val id: String, val kind: String, val x: Float, val y: Float, val w: Float, val h: Float,
-    val fontSizeSp: Float? = null, val iconKey: String? = null, val appComponent: String? = null, val label: String? = null)
+    val fontSizeSp: Float? = null, val iconKey: String? = null, val appComponent: String? = null, val label: String? = null,
+    val textAlignment: String = "left", val fontFamily: String = "default")
 
 // Coordinates are fractions of the usable desktop; preserve layout across screen sizes.
 fun Tile.fit(): Tile {
@@ -17,15 +18,19 @@ val initialTiles = listOf(Tile("clock", "Reloj", .04f, .10f, .92f, .24f),
 const val LEFT_DESKTOP = 0
 const val CENTRAL_DESKTOP = 1
 const val APPS_DESKTOP = 2
+const val EXTRA_DESKTOP = 3
+fun desktopPages(extra: Boolean) = if (extra) listOf(EXTRA_DESKTOP, LEFT_DESKTOP, CENTRAL_DESKTOP, APPS_DESKTOP) else listOf(LEFT_DESKTOP, CENTRAL_DESKTOP, APPS_DESKTOP)
 
 // Keep the original key for the central desktop so upgrades preserve existing layouts.
 fun desktopStorageKey(desktop: Int): String = when (desktop) {
     LEFT_DESKTOP -> "tiles-left"
+    EXTRA_DESKTOP -> "tiles-extra"
     CENTRAL_DESKTOP -> "tiles"
     else -> error("The apps page does not store tiles")
 }
 fun defaultTiles(desktop: Int): List<Tile> = when (desktop) {
     LEFT_DESKTOP -> emptyList()
+    EXTRA_DESKTOP -> emptyList()
     CENTRAL_DESKTOP -> initialTiles
     else -> error("The apps page does not store tiles")
 }

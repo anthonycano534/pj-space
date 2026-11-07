@@ -26,3 +26,5 @@ Quinta evolución confirmada: 0.1.6 separa reloj y barra conservando sus ajustes
 4. Probar ese cambio en el dispositivo del usuario antes de darlo por validado y acumular otro cambio.
 
 Las notas, posiciones, tamaños y gestos guardados siguen usando el mismo formato. El escritorio se adapta al espacio de la interfaz original, por lo que las coordenadas proporcionales pueden verse en otra ubicación física.
+
+Sexta evolución confirmada: 0.1.7 incorpora los cambios de edición y organización revisados por el usuario, incluida búsqueda de apps ocultas y el logo. Ver CAMBIOS-0.1.7.md. Los escritorios previos conservan sus claves; las tareas anteriores se migran a un primer bloque sin borrar el registro original.

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
@@ -58,7 +59,7 @@ import java.util.Locale
 }
 
 /** Clock and action bar are own components; the bird never depends on the assigned app. */
-@Composable fun DigitalClock(fontSizeSp: Float = 96f, actionText: String = "Busca...", onAction: (() -> Unit)? = null) {
+@Composable fun DigitalClock(fontSizeSp: Float = 96f, onClockClick: (() -> Unit)? = null) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var now by remember { mutableStateOf(LocalDateTime.now()) }
@@ -75,9 +76,8 @@ import java.util.Locale
     val measurer = rememberTextMeasurer()
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val bandHeight = (maxHeight.value * .18f).coerceIn(24f, 48f).dp
-        val barHeight = (maxHeight.value * .23f).coerceIn(36f, 56f).dp
         val gap = (maxHeight.value * .025f).coerceIn(3f, 8f).dp
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(gap)) {
+        Column(Modifier.fillMaxSize().then(if (onClockClick != null) Modifier.clickable(onClick = onClockClick) else Modifier), verticalArrangement = Arrangement.spacedBy(gap)) {
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().border(3.dp, Color.White).padding(6.dp), contentAlignment = Alignment.Center) {
                 val requested = componentFontSize("Reloj", fontSizeSp)
                 val style = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Light,
@@ -93,14 +93,16 @@ import java.util.Locale
                 Box(Modifier.width(1.dp).fillMaxHeight(.65f).background(Color.Black.copy(alpha = .45f)))
                 ClockDatePart(dateParts[2], Modifier.weight(.45f))
             }
-            Surface(onClick = { onAction?.invoke() }, enabled = onAction != null,
-                modifier = Modifier.fillMaxWidth().height(barHeight), shape = RoundedCornerShape(50), color = Color.White, contentColor = Color.Black) {
-                Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Image(painterResource(R.drawable.ic_bird), contentDescription = null, modifier = Modifier.size((barHeight.value * .65f).dp))
-                    Text(actionText.ifBlank { "Busca..." }, Modifier.weight(1f), color = Color.Black, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    SearchIcon(Color.Black)
-                }
-            }
+        }
+    }
+}
+
+@Composable fun ActionBar(label: String, onClick: () -> Unit) {
+    Surface(onClick = onClick, modifier = Modifier.fillMaxSize(), shape = RoundedCornerShape(50), color = Color.White, contentColor = Color.Black) {
+        Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Image(painterResource(R.drawable.ic_bird), contentDescription = null, modifier = Modifier.size(30.dp))
+            Text(label.ifBlank { "Busca..." }, Modifier.weight(1f), color = Color.Black, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            SearchIcon(Color.Black)
         }
     }
 }

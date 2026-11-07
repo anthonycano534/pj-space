@@ -1,15 +1,18 @@
 package com.pjspace.launcher
 
-data class Tile(val id: String, val kind: String, val x: Float, val y: Float, val w: Float, val h: Float, val fontSizeSp: Float? = null)
+data class Tile(val id: String, val kind: String, val x: Float, val y: Float, val w: Float, val h: Float,
+    val fontSizeSp: Float? = null, val iconKey: String? = null, val appComponent: String? = null, val label: String? = null)
 
 // Coordinates are fractions of the usable desktop; preserve layout across screen sizes.
 fun Tile.fit(): Tile {
-    val width = w.coerceIn(.25f, 1f)
-    val height = h.coerceIn(.18f, 1f)
+    val width = w.coerceIn(if (kind == "Acceso") .14f else .25f, 1f)
+    val minHeight = when (kind) { "Barra" -> .055f; "Acceso" -> .10f; else -> .18f }
+    val height = h.coerceIn(minHeight, 1f)
     return copy(w = width, h = height, x = x.coerceIn(0f, 1f - width), y = y.coerceIn(0f, 1f - height),
         fontSizeSp = fontSizeSp?.let { componentFontSize(kind, it) })
 }
-val initialTiles = listOf(Tile("clock", "Reloj", 0f, 0f, 1f, .25f), Tile("note", "Nota", 0f, .29f, 1f, .38f))
+val initialTiles = listOf(Tile("clock", "Reloj", .04f, .10f, .92f, .24f),
+    Tile("bar-clock", "Barra", .04f, .36f, .92f, .075f, label = "Busca..."), Tile("note", "Nota", .04f, .47f, .92f, .32f))
 
 const val LEFT_DESKTOP = 0
 const val CENTRAL_DESKTOP = 1

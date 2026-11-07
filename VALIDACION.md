@@ -1,5 +1,14 @@
 # Validación · 7 de noviembre de 2026
 
+## Componentes independientes y productividad · 0.1.6
+
+- Compilación final correcta; 18 pruebas unitarias aprobadas, cero fallos/errores. Se añaden casos de migración idempotente con app/texto de barra y notas preservadas, límites de componentes compactos, orden con apps nuevas/eliminadas, reordenado, meses completos/semana local/años bisiestos, progreso vacío/parcial/completo y gestos cortos.
+- Reloj y barra tienen tarjetas separadas. El permiso normal SET_ALARM se declara para abrir la interfaz de alarmas, sin parámetros de omitir interfaz ni crear alarmas silenciosamente.
+- Solo se cambia el orden guardado al Guardar. La lista y la búsqueda usan IDs de componentes Android para evitar confusión con nombres repetidos.
+- Calendario no accede a la agenda. Pendientes guarda datos por ID local y solo permite alta/edición/borrado en Modo edición.
+- Ocultación/estilo y apartamiento de barras se implementan con las APIs de Android y Compose. El resultado real de barras transitorias depende también del sistema/fabricante y necesita prueba en el dispositivo.
+- Pendiente de interacción: migración real, alarmas, arrastre de apps, teclado, calendario, pendientes, accesos, sensibilidad y barras. No se ha ejecutado visualmente la app en Android ni medido memoria/batería/fluidez.
+
 ## Reloj de referencia y acciones fijas · 0.1.5
 
 - Compilación `assembleDebug testDebugUnitTest`: correcta. Once pruebas unitarias aprobadas, sin fallos ni errores.

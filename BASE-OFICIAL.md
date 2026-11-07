@@ -18,6 +18,8 @@ Tercera evolución, revisada y confirmada antes de programar: 0.1.4 corrige Atr�
 
 Cuarta evolución confirmada: 0.1.5 cambia el reloj a la segunda referencia, agrega su barra de pájaro fijo configurable, limita teclado de búsqueda al toque de lupa y corrige/agranda controles. Durante el trabajo el usuario autorizó acciones configurables también para teléfono/cámara fijos en las esquinas inferiores. Ver CAMBIOS-0.1.5.md.
 
+Quinta evolución confirmada: 0.1.6 separa reloj y barra conservando sus ajustes, abre alarmas desde el reloj, ajusta barras del sistema, añade accesos con icono/app, gestos cortos, tarjetas de notas, calendario, pendientes y orden de apps. El usuario revisó la lista y autorizó programar la versión. Ver CAMBIOS-0.1.6.md.
+
 1. Partir de esta base oficial.
 2. Hacer un único cambio por vez.
 3. Compilar y realizar las comprobaciones correspondientes.

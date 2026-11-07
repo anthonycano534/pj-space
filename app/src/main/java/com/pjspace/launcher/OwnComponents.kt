@@ -13,6 +13,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,7 +51,7 @@ import java.util.Locale
 }
 
 /** Native Compose component: no AppWidgetHost, background service or per-second timer. */
-@Composable fun DigitalClock() {
+@Composable fun DigitalClock(fontSizeSp: Float = 96f) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var now by remember { mutableStateOf(LocalDateTime.now()) }
@@ -62,28 +66,39 @@ import java.util.Locale
     val twentyFourHour = DateFormat.is24HourFormat(context)
     val time = now.format(DateTimeFormatter.ofPattern(if (twentyFourHour) "HH:mm" else "h:mm a", Locale.getDefault()))
     val day = now.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(Locale.getDefault()))
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val size = minOf(maxWidth.value / if (twentyFourHour) 3.2f else 4.8f, maxHeight.value * .45f).coerceIn(16f, 64f)
+        val requested = componentFontSize("Reloj", fontSizeSp)
+        val dateSize = (requested * .2f).coerceIn(12f, 20f)
+        val dateStyle = TextStyle(fontSize = dateSize.sp, lineHeight = (dateSize * 1.25f).sp)
+        val timeStyle = TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Light, fontSize = requested.sp, lineHeight = (requested * 1.1f).sp)
+        val widthPx = with(density) { maxWidth.toPx() }
+        val heightPx = with(density) { maxHeight.toPx() }
+        val dateHeight = measurer.measure(day, dateStyle, maxLines = 2, constraints = Constraints(maxWidth = widthPx.toInt().coerceAtLeast(1))).size.height
+        val timeMeasure = measurer.measure(time, timeStyle, softWrap = false, maxLines = 1)
+        val size = fittedClockFont(requested, widthPx, heightPx - dateHeight - with(density) { 8.dp.toPx() }, timeMeasure.size.width.toFloat(), timeMeasure.size.height.toFloat())
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-            Text(time, color = Color.White, fontSize = size.sp, fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Clip)
-            Text(day, color = Color.White, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(time, color = Color.White, style = timeStyle.copy(fontSize = size.sp, lineHeight = (size * 1.1f).sp), maxLines = 1, softWrap = false)
+            Spacer(Modifier.height(8.dp))
+            Text(day, color = Color.White, style = dateStyle, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 /** Home contains only text: no text input, focus target, IME or editable semantics. */
-@Composable fun NotePreview(text: String) {
+@Composable fun NotePreview(text: String, fontSizeSp: Float = 18f) {
     Text(
         if (text.isBlank()) "Nota vacía" else text,
         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
         color = Color.White,
-        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp, lineHeight = 26.sp)
+        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSizeSp.sp, lineHeight = (fontSizeSp * 1.45f).sp)
     )
 }
 
-@Composable fun NoteEditor(initialText: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+@Composable fun NoteEditor(initialText: String, initialFontSize: Float, onSave: (String, Float) -> Unit, onDismiss: () -> Unit) {
     var draft by remember { mutableStateOf(initialText) }
+    var fontSize by remember { mutableFloatStateOf(componentFontSize("Nota", initialFontSize)) }
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     fun close() { focus.clearFocus(force = true); keyboard?.hide(); onDismiss() }
@@ -91,14 +106,36 @@ import java.util.Locale
         onDismissRequest = { close() },
         title = { Text("Editar nota") },
         text = {
-            OutlinedTextField(
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("Tamaño del texto: ${fontSize.toInt()}")
+                Slider(value = fontSize, onValueChange = { fontSize = it }, valueRange = 12f..64f)
+                OutlinedTextField(
                 value = draft, onValueChange = { draft = it },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 320.dp),
                 label = { Text("Nota") }, placeholder = { Text("¿Qué necesitás resolver?") },
-                textStyle = MaterialTheme.typography.bodyLarge
-            )
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize.sp, lineHeight = (fontSize * 1.45f).sp)
+                )
+            }
         },
-        confirmButton = { TextButton(onClick = { focus.clearFocus(force = true); keyboard?.hide(); onSave(draft) }) { Text("Guardar") } },
+        confirmButton = { TextButton(onClick = { focus.clearFocus(force = true); keyboard?.hide(); onSave(draft, fontSize) }) { Text("Guardar") } },
         dismissButton = { TextButton(onClick = { close() }) { Text("Cancelar") } }
+    )
+}
+
+@Composable fun ClockSizeEditor(initialSize: Float, onSave: (Float) -> Unit, onDismiss: () -> Unit) {
+    var size by remember { mutableFloatStateOf(componentFontSize("Reloj", initialSize)) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Tamaño del reloj") },
+        text = {
+            Column {
+                Text("Tamaño de la hora: ${size.toInt()}")
+                Slider(size, { size = it }, valueRange = 24f..240f)
+                Box(Modifier.fillMaxWidth().height(170.dp)) { DigitalClock(size) }
+                Text("Agrandá también la tarjeta para dar más espacio a los números.", style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(size) }) { Text("Guardar") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
 }

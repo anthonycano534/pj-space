@@ -12,9 +12,12 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -35,6 +38,11 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -104,6 +112,7 @@ class MainActivity : ComponentActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         pendingWidget = savedInstanceState?.getInt("pendingWidget", -1) ?: -1
         pendingWidgetDesktop = savedInstanceState?.getInt("pendingWidgetDesktop", CENTRAL_DESKTOP) ?: CENTRAL_DESKTOP
         setContent {
@@ -137,12 +146,17 @@ class MainActivity : ComponentActivity() {
         val array = JSONArray(prefs.getString(storageKey, null) ?: "[]")
         if (!prefs.contains(storageKey)) defaultTiles(desktop) else (0 until array.length()).map {
             val o = array.getJSONObject(it)
-            Tile(o.getString("id"), o.getString("kind"), o.getDouble("x").toFloat(), o.getDouble("y").toFloat(), o.getDouble("w").toFloat(), o.getDouble("h").toFloat()).fit()
+            Tile(o.getString("id"), o.getString("kind"), o.getDouble("x").toFloat(), o.getDouble("y").toFloat(), o.getDouble("w").toFloat(), o.getDouble("h").toFloat(),
+                if (o.has("fontSizeSp")) o.getDouble("fontSizeSp").toFloat() else null).fit()
         }
     } catch (_: Exception) { defaultTiles(desktop) }
     private fun saveTiles(desktop: Int, tiles: List<Tile>) {
         val array = JSONArray()
-        tiles.forEach { array.put(JSONObject().put("id", it.id).put("kind", it.kind).put("x", it.x).put("y", it.y).put("w", it.w).put("h", it.h)) }
+        tiles.forEach {
+            val item = JSONObject().put("id", it.id).put("kind", it.kind).put("x", it.x).put("y", it.y).put("w", it.w).put("h", it.h)
+            it.fontSizeSp?.let { size -> item.put("fontSizeSp", size) }
+            array.put(item)
+        }
         prefs.edit().putString(desktopStorageKey(desktop), array.toString()).apply()
     }
     @Composable private fun Home() {
@@ -150,6 +164,14 @@ class MainActivity : ComponentActivity() {
         val focus = LocalFocusManager.current
         val keyboard = LocalSoftwareKeyboardController.current
         LaunchedEffect(editing) { if (!editing) { focus.clearFocus(force = true); keyboard?.hide() } }
+        LaunchedEffect(page) {
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            controller.isAppearanceLightStatusBars = false
+            controller.isAppearanceLightNavigationBars = false
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            if (page == "Inicio") controller.hide(WindowInsetsCompat.Type.systemBars())
+            else controller.show(WindowInsetsCompat.Type.systemBars())
+        }
         val layouts = remember {
             mutableStateMapOf(LEFT_DESKTOP to loadTiles(LEFT_DESKTOP), CENTRAL_DESKTOP to loadTiles(CENTRAL_DESKTOP))
         }
@@ -169,7 +191,10 @@ class MainActivity : ComponentActivity() {
             page = "Inicio"
             scope.launch { pager.animateScrollToPage(desktop) }
         }
-        LaunchedEffect(homeRequest) { editing = false; pager.scrollToPage(CENTRAL_DESKTOP) }
+        LaunchedEffect(homeRequest) {
+            focus.clearFocus(force = true); keyboard?.hide()
+            editing = false; pager.scrollToPage(CENTRAL_DESKTOP)
+        }
         LaunchedEffect(addedWidget) {
             addedWidget?.let { id ->
                 val desktop = addedWidgetDesktop
@@ -178,23 +203,22 @@ class MainActivity : ComponentActivity() {
                 addedWidget = null
             }
         }
-        BackHandler(page != "Inicio" || editing || pager.currentPage != CENTRAL_DESKTOP) {
-            when {
-                selectedGesture != null -> selectedGesture = null
-                page != "Inicio" -> page = "Inicio"
-                editing -> editing = false
-                else -> goTo(CENTRAL_DESKTOP)
+        // Always consume Back. At the central desktop it must never finish the HOME activity.
+        BackHandler(enabled = true) {
+            focus.clearFocus(force = true); keyboard?.hide()
+            when (launcherBackAction(selectedGesture != null, editing, page == "Ajustes", pager.currentPage)) {
+                LauncherBackAction.CLOSE_DIALOG -> selectedGesture = null
+                LauncherBackAction.FINISH_EDITING -> editing = false
+                LauncherBackAction.OPEN_HOME -> goTo(CENTRAL_DESKTOP)
+                LauncherBackAction.STAY_HOME -> Unit
             }
         }
-        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
-            Text("pj. / SPACE", style = MaterialTheme.typography.titleLarge)
-            Text("Prender. Resolver. Apagar.", style = MaterialTheme.typography.bodyMedium)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = { goTo(CENTRAL_DESKTOP) }) { Text("Inicio") }
-                TextButton(onClick = { goTo(APPS_DESKTOP) }) { Text("Apps") }
-                TextButton(onClick = { editing = false; page = "Ajustes" }) { Text("Ajustes") }
-            }
-            if (page == "Ajustes") {
+        if (page == "Ajustes") {
+            Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { goTo(CENTRAL_DESKTOP) }) { Text("Volver") }
+                    Text("Ajustes", style = MaterialTheme.typography.titleLarge)
+                }
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item { OutlinedButton(onClick = { chooseHome() }) { Text("Elegir como pantalla de inicio") } }
                     item { Text("Deslizar a izquierda o derecha cambia de escritorio.") }
@@ -202,53 +226,56 @@ class MainActivity : ComponentActivity() {
                     items(listOf("Arriba", "Abajo")) { gesture ->
                         val binding = bindings[gesture].orEmpty()
                         val label = if (binding.isBlank()) "Sin asignar" else apps.find { it.second.flattenToString() == binding }?.first ?: "App no disponible · volver a elegir"
-                        OutlinedButton(onClick = { selectedGesture = gesture }, modifier = Modifier.fillMaxWidth()) {
-                            Text("$gesture: $label")
-                        }
+                        OutlinedButton(onClick = { selectedGesture = gesture }, modifier = Modifier.fillMaxWidth()) { Text("$gesture: $label") }
                     }
                     item { Text("Estrená celular sin comprar otro", style = MaterialTheme.typography.titleMedium) }
                     item { Text("Todo lo útil al alcance de la mano.") }
                 }
-            } else {
-                val desktop = pager.currentPage
-                Text(when (desktop) {
-                    LEFT_DESKTOP -> "Escritorio izquierdo"
-                    APPS_DESKTOP -> "Aplicaciones"
-                    else -> "Escritorio principal"
-                }, style = MaterialTheme.typography.labelMedium)
-                if (desktop != APPS_DESKTOP) {
-                    Row(Modifier.horizontalScroll(rememberScrollState())) {
-                        TextButton(onClick = { editing = !editing }) { Text(if (editing) "Terminar edición" else "Modo edición") }
-                        if (editing) {
-                            TextButton(onClick = {
-                                updateLayout(desktop, layouts[desktop].orEmpty() + Tile("note-$desktop-${System.nanoTime()}", "Nota", .05f, .05f, .8f, .35f))
-                            }) { Text("+ Nota") }
-                            if (layouts[desktop].orEmpty().none { it.kind == "Reloj" }) TextButton(onClick = {
-                                updateLayout(desktop, layouts[desktop].orEmpty() + initialTiles.first().copy(id = "clock-$desktop"))
-                            }) { Text("+ Reloj") }
-                            TextButton(onClick = { addWidget(desktop) }) { Text("+ Widget externo") }
-                        }
-                    }
-                    if (editing) Text("Mové desde la barra. Redimensioná desde ↘. Tocá Editar para escribir.", style = MaterialTheme.typography.bodySmall)
-                }
-                HorizontalPager(
-                    state = pager,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    userScrollEnabled = !editing,
-                    key = { it }
-                ) { index ->
+            }
+        } else {
+            Box(Modifier.fillMaxSize().displayCutoutPadding()) {
+                HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), userScrollEnabled = !editing, key = { it }) { index ->
                     if (index == APPS_DESKTOP) {
-                        AppList(onOpen = { app -> open(Intent.makeMainActivity(app)); goTo(CENTRAL_DESKTOP) })
+                        Box(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 64.dp, bottom = 8.dp)) {
+                            AppList(onOpen = { app -> open(Intent.makeMainActivity(app)); goTo(CENTRAL_DESKTOP) })
+                        }
                     } else {
                         DesktopCanvas(
-                            tiles = layouts[index].orEmpty(),
-                            editing = editing,
+                            tiles = layouts[index].orEmpty(), editing = editing,
                             onTilesChange = { tiles, persist -> updateLayout(index, tiles, persist) },
                             onVerticalGesture = { gesture ->
                                 val component = ComponentName.unflattenFromString(bindings[gesture].orEmpty())
                                 if (component != null) open(Intent.makeMainActivity(component))
                             }
                         )
+                    }
+                }
+                IconButton(
+                    onClick = {
+                        focus.clearFocus(force = true); keyboard?.hide()
+                        scope.launch {
+                            if (pager.currentPage == APPS_DESKTOP) pager.scrollToPage(CENTRAL_DESKTOP)
+                            editing = !editing
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp).size(48.dp)
+                        .background(Color.Black, CircleShape).semantics { contentDescription = if (editing) "Terminar edición" else "Modo edición" }
+                ) { LauncherIcon(settings = false) }
+                IconButton(
+                    onClick = { focus.clearFocus(force = true); keyboard?.hide(); editing = false; page = "Ajustes" },
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(48.dp)
+                        .background(Color.Black, CircleShape).semantics { contentDescription = "Ajustes" }
+                ) { LauncherIcon(settings = true) }
+                if (editing) {
+                    val desktop = pager.currentPage
+                    Surface(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(8.dp)
+                        .border(1.dp, Color.White, MaterialTheme.shapes.large), shape = MaterialTheme.shapes.large, color = Color.Black) {
+                        Row(Modifier.horizontalScroll(rememberScrollState())) {
+                            TextButton(onClick = { editing = false }) { Text("Listo") }
+                            TextButton(onClick = { updateLayout(desktop, layouts[desktop].orEmpty() + Tile("note-$desktop-${System.nanoTime()}", "Nota", .05f, .1f, .8f, .35f)) }) { Text("+ Nota") }
+                            if (layouts[desktop].orEmpty().none { it.kind == "Reloj" }) TextButton(onClick = { updateLayout(desktop, layouts[desktop].orEmpty() + initialTiles.first().copy(id = "clock-$desktop")) }) { Text("+ Reloj") }
+                            TextButton(onClick = { addWidget(desktop) }) { Text("+ Widget externo") }
+                        }
                     }
                 }
             }
@@ -303,7 +330,8 @@ class MainActivity : ComponentActivity() {
         val latestGesture by rememberUpdatedState(onVerticalGesture)
         val notes = remember { mutableStateMapOf<String, String>() }
         var editingNote by remember { mutableStateOf<String?>(null) }
-        LaunchedEffect(editing) { if (!editing) editingNote = null }
+        var editingClock by remember { mutableStateOf<String?>(null) }
+        LaunchedEffect(editing) { if (!editing) { editingNote = null; editingClock = null } }
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val width = maxWidth; val height = maxHeight
             val density = LocalDensity.current
@@ -339,6 +367,7 @@ class MainActivity : ComponentActivity() {
                                     detectDragGestures(onDragEnd = { latestChange(latestTiles, true) }, onDragCancel = { latestChange(latestTiles, true) }) { change, delta -> change.consume(); update(delta.x, delta.y, false) }
                                 })
                                 if (tile.kind == "Nota") TextButton(onClick = { editingNote = tile.id }) { Text("Editar") }
+                                if (tile.kind == "Reloj") TextButton(onClick = { editingClock = tile.id }) { Text("Tamaño") }
                                 TextButton(onClick = {
                                     tile.kind.substringAfter("Widget:", "").toIntOrNull()?.let { widgetHost.deleteAppWidgetId(it) }
                                     latestChange(latestTiles.filterNot { it.id == tile.id }, true)
@@ -352,8 +381,8 @@ class MainActivity : ComponentActivity() {
                                     else AndroidView(factory = { widgetHost.createView(it, widgetId, info) }, modifier = Modifier.fillMaxSize(), update = { view ->
                                         view.updateAppWidgetSize(null, (width.value * tile.w).toInt(), (height.value * tile.h - 80).toInt().coerceAtLeast(40), (width.value * tile.w).toInt(), (height.value * tile.h - 80).toInt().coerceAtLeast(40))
                                     })
-                                } else if (tile.kind == "Reloj") DigitalClock()
-                                else NotePreview(notes[tile.id] ?: prefs.getString("note-${tile.id}", "").orEmpty())
+                                } else if (tile.kind == "Reloj") DigitalClock(componentFontSize(tile.kind, tile.fontSizeSp))
+                                else NotePreview(notes[tile.id] ?: prefs.getString("note-${tile.id}", "").orEmpty(), componentFontSize(tile.kind, tile.fontSizeSp))
                             }
                             if (editing) Text("↘", Modifier.align(Alignment.End).size(48.dp).pointerInput(tile.id, wp, hp) {
                                 detectDragGestures(onDragEnd = { latestChange(latestTiles, true) }, onDragCancel = { latestChange(latestTiles, true) }) { change, delta -> change.consume(); update(delta.x, delta.y, true) }
@@ -366,8 +395,20 @@ class MainActivity : ComponentActivity() {
         if (editing) editingNote?.let { id ->
             if (tiles.any { it.id == id && it.kind == "Nota" }) NoteEditor(
                 initialText = notes[id] ?: prefs.getString("note-$id", "").orEmpty(),
-                onSave = { value -> notes[id] = value; prefs.edit().putString("note-$id", value).apply(); editingNote = null },
+                initialFontSize = componentFontSize("Nota", tiles.find { it.id == id }?.fontSizeSp),
+                onSave = { value, size ->
+                    notes[id] = value; prefs.edit().putString("note-$id", value).apply()
+                    latestChange(latestTiles.map { if (it.id == id) it.copy(fontSizeSp = size) else it }, true)
+                    editingNote = null
+                },
                 onDismiss = { editingNote = null }
+            )
+        }
+        if (editing) editingClock?.let { id ->
+            if (tiles.any { it.id == id && it.kind == "Reloj" }) ClockSizeEditor(
+                initialSize = componentFontSize("Reloj", tiles.find { it.id == id }?.fontSizeSp),
+                onSave = { size -> latestChange(latestTiles.map { if (it.id == id) it.copy(fontSizeSp = size) else it }, true); editingClock = null },
+                onDismiss = { editingClock = null }
             )
         }
     }

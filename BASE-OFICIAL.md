@@ -14,6 +14,8 @@ Primera evolución autorizada: 0.1.2 incorpora páginas laterales (izquierda vac
 
 Segunda evolución autorizada: 0.1.3 incorpora negro/blanco, reloj y notas propios, y edición de notas únicamente en Modo edición. Por aclaración expresa del usuario, se priorizan los componentes propios y se mantiene la posibilidad de agregar widgets externos. Ver CAMBIOS-0.1.3.md.
 
+Tercera evolución, revisada y confirmada antes de programar: 0.1.4 corrige Atrás, usa pantalla completa con pincel arriba a la izquierda y ajustes arriba a la derecha, y permite tamaños de letra por reloj/nota. No se restableció la publicación descartada 0.2. Ver CAMBIOS-0.1.4.md.
+
 1. Partir de esta base oficial.
 2. Hacer un único cambio por vez.
 3. Compilar y realizar las comprobaciones correspondientes.

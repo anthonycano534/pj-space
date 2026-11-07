@@ -1,5 +1,15 @@
 # Validación · 7 de noviembre de 2026
 
+## Inicio completo, Atrás y tipografía · 0.1.4
+
+- Compilación final `assembleDebug testDebugUnitTest`: correcta. Nueve pruebas aprobadas, cero fallos y cero errores.
+- Nuevas pruebas cubren prioridad de diálogos/edición al volver, permanencia en el principal, navegación desde laterales/ajustes, conservación del tamaño al cambiar geometría y ajuste de reloj a ancho/alto sin el antiguo tope 64.
+- El BackHandler está siempre habilitado. El caso principal no finaliza la actividad ni llama a navegación/recarga; los diálogos conservan su cierre propio.
+- Pincel y engranaje son iconos nativos dibujados en código, flotantes y accesibles. El escritorio conserva exactamente las mismas dimensiones al entrar o salir de edición.
+- fontSizeSp es opcional en el almacenamiento de tarjetas. Se mantienen las claves de notas, geometría y gestos de versiones anteriores.
+- Hora configurada entre 24 y 240; el tamaño efectivo se ajusta a ancho y alto medidos dejando espacio separado para la fecha. Notas entre 12 y 64, independientes por tarjeta y guardadas junto con la nota al pulsar Guardar.
+- Pendiente de dispositivo: comportamiento real de Atrás y barras del sistema, fluidez, posiciones con pantalla completa, reloj en tamaños extremos y accesibilidad de los controles. Las pruebas unitarias no sustituyen esta comprobación.
+
 ## Negro/blanco y Modo edición · 0.1.3
 
 - Compilación final `assembleDebug testDebugUnitTest`: correcta. Cuatro pruebas existentes aprobadas. No se añadieron pruebas que simulen la implementación de la interfaz.

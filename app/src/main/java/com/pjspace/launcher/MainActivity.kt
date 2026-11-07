@@ -12,13 +12,11 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,9 +30,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
@@ -92,7 +87,6 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) { outState.putInt("pendingWidget", pendingWidget); super.onSaveInstanceState(outState) }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         pendingWidget = savedInstanceState?.getInt("pendingWidget", -1) ?: -1
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFFB5DFC5), background = Color(0xFF101614))) {
@@ -133,12 +127,6 @@ class MainActivity : ComponentActivity() {
         prefs.edit().putString("tiles", array.toString()).apply()
     }
     @Composable private fun Home() {
-        LaunchedEffect(page) {
-            val controller = WindowCompat.getInsetsController(window, window.decorView)
-            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            if (page == "Inicio") controller.hide(WindowInsetsCompat.Type.systemBars())
-            else controller.show(WindowInsetsCompat.Type.systemBars())
-        }
         var editing by remember { mutableStateOf(false) }
         var tiles by remember { mutableStateOf(loadTiles()) }
         var query by remember { mutableStateOf("") }
@@ -159,10 +147,13 @@ class MainActivity : ComponentActivity() {
             "Cámara" -> open(Intent("android.media.action.STILL_IMAGE_CAMERA"))
             "Teléfono" -> open(Intent(Intent.ACTION_DIAL))
         } }
-        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = if (page == "Inicio") 0.dp else 16.dp)) {
-            if (page != "Inicio") Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { page = "Inicio" }) { Text("Volver") }
-                Text(page, style = MaterialTheme.typography.titleLarge)
+        Column(Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp)) {
+            Text("pj. / SPACE", style = MaterialTheme.typography.titleLarge)
+            Text("Prender. Resolver. Apagar.", style = MaterialTheme.typography.bodyMedium)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = { page = "Inicio" }) { Text("Inicio") }
+                TextButton(onClick = { page = "Aplicaciones" }) { Text("Apps") }
+                TextButton(onClick = { page = "Ajustes" }) { Text("Ajustes") }
             }
             when (page) {
                 "Aplicaciones" -> {
@@ -195,14 +186,23 @@ class MainActivity : ComponentActivity() {
                     item { Text("Todo lo útil al alcance de la mano.\nDatos locales. Sin publicidad ni feed.") }
                 }
                 else -> {
+                    Row(Modifier.horizontalScroll(rememberScrollState())) {
+                        TextButton(onClick = { editing = !editing }) { Text(if (editing) "Listo" else "Editar escritorio") }
+                        if (editing) TextButton(onClick = {
+                            tiles = tiles + Tile(System.nanoTime().toString(), "Nota", .05f, .05f, .8f, .35f); saveTiles(tiles)
+                        }) { Text("+ Nota") }
+                        if (editing) TextButton(onClick = { addWidget() }) { Text("+ Widget") }
+                        if (editing && tiles.none { it.kind == "Reloj" }) TextButton(onClick = {
+                            tiles = tiles + initialTiles.first(); saveTiles(tiles)
+                        }) { Text("+ Reloj") }
+                    }
+                    if (editing) Text("Arrastrá la barra superior. Cambiá el tamaño desde ↘.", style = MaterialTheme.typography.bodySmall)
                     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                         val width = maxWidth; val height = maxHeight
                         val density = LocalDensity.current
                         val wp = with(density) { width.toPx() }.coerceAtLeast(1f)
                         val hp = with(density) { height.toPx() }.coerceAtLeast(1f)
-                        Box(Modifier.fillMaxSize().pointerInput(Unit) {
-                            detectTapGestures(onLongPress = { editing = true })
-                        }.pointerInput(editing, mappings) {
+                        Box(Modifier.fillMaxSize().pointerInput(editing, mappings) {
                             var dx = 0f; var dy = 0f
                             detectDragGestures(onDragStart = { dx = 0f; dy = 0f }, onDragEnd = {
                                 if (!editing && maxOf(abs(dx), abs(dy)) > 64.dp.toPx()) action(mappings[direction(dx, dy)] ?: "Nada")
@@ -245,25 +245,6 @@ class MainActivity : ComponentActivity() {
                                         }, style = MaterialTheme.typography.headlineMedium)
                                     }
                                 }
-                            }
-                        }
-                        // Overlay controls keep desktop geometry identical in and out of edit mode.
-                        if (editing) Surface(Modifier.align(Alignment.BottomCenter).padding(8.dp), shape = MaterialTheme.shapes.large, tonalElevation = 8.dp) {
-                            Row(Modifier.horizontalScroll(rememberScrollState())) {
-                                TextButton(onClick = { editing = false }) { Text("Listo") }
-                                TextButton(onClick = {
-                                    tiles = tiles + Tile(System.nanoTime().toString(), "Nota", .05f, .05f, .8f, .35f); saveTiles(tiles)
-                                }) { Text("+ Nota") }
-                                TextButton(onClick = { addWidget() }) { Text("+ Widget") }
-                                if (tiles.none { it.kind == "Reloj" }) TextButton(onClick = { tiles = tiles + initialTiles.first(); saveTiles(tiles) }) { Text("+ Reloj") }
-                            }
-                        } else Box(Modifier.align(Alignment.BottomEnd).padding(8.dp)) {
-                            var menu by remember { mutableStateOf(false) }
-                            TextButton(onClick = { menu = true }) { Text("Menú") }
-                            DropdownMenu(menu, { menu = false }) {
-                                DropdownMenuItem(text = { Text("Aplicaciones") }, onClick = { menu = false; page = "Aplicaciones" })
-                                DropdownMenuItem(text = { Text("Editar escritorio") }, onClick = { menu = false; editing = true })
-                                DropdownMenuItem(text = { Text("Ajustes") }, onClick = { menu = false; page = "Ajustes" })
                             }
                         }
                     }

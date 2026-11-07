@@ -2,11 +2,11 @@
 
 Repositorio: `anthonycano534/pj-space`, público.
 
-## Primera publicación
+## Publicación principal actual
 
 1. Subir el código fuente de esta carpeta respetando `.gitignore`.
-2. Crear la versión `v0.2.0` con las notas de `CAMBIOS-0.2.md`.
-3. Adjuntar el APK validado de la versión 0.2 con el nombre **PJSpace.apk**.
+2. Crear la versión `v0.1.1` con las notas de `BASE-OFICIAL.md` (restauración de 0.1).
+3. Adjuntar el APK de restauración con el nombre **PJSpace.apk**.
 4. Marcarla como la versión más reciente.
 
 El enlace de descarga es `https://github.com/anthonycano534/pj-space/releases/latest/download/PJSpace.apk`.
@@ -14,6 +14,8 @@ El enlace de descarga es `https://github.com/anthonycano534/pj-space/releases/la
 ## Siguientes versiones
 
 Incrementar `versionCode` y `versionName`, compilar y comprobar el APK, y publicar una nueva versión con el mismo nombre de archivo adjunto. Así el enlace anterior continúa apuntando al APK más reciente.
+
+La restauración 0.1.1 usa versionCode 3 para actualizar desde 0.2 (versionCode 2). Debe marcarse explícitamente como Latest aunque su etiqueta sea menor que 0.2.0. La publicación anterior no se elimina.
 
 Mantener la misma clave de firma permite instalar las actualizaciones sin desinstalar ni perder datos. La clave de depuración usada por este prototipo permanece fuera del repositorio; no se debe subir ningún archivo de claves ni credenciales. Para una futura distribución de producción se definirá una clave de lanzamiento y su copia de seguridad.
 

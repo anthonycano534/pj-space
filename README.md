@@ -1,4 +1,4 @@
-# PJ Space · prototipo 0.2
+# PJ Space · primera versión oficial (restauración 0.1.1)
 
 Estrená celular sin comprar otro. Todo lo útil al alcance de la mano.
 
@@ -8,6 +8,8 @@ Estrená celular sin comprar otro. Todo lo útil al alcance de la mano.
 
 Prototipo en desarrollo. Instalá las actualizaciones sobre la versión anterior para conservar el escritorio.
 
+La base oficial vuelve a la primera versión (0.1), que el usuario encontró más fluida. La publicación 0.1.1 restaura su código y usa un número interno superior para poder instalarse sobre 0.2 sin desinstalar. A partir de ahora se hará y probará un cambio por vez. Ver [BASE-OFICIAL.md](BASE-OFICIAL.md). La 0.2 se conserva únicamente como historial.
+
 ## Abrir
 
 Abrí esta carpeta como proyecto en Android Studio. Usá JDK 17 para Gradle y dejá sincronizar las dependencias. El SDK local está indicado en `local.properties` (archivo específico de esta PC, excluido de Git). Kotlin + Compose, paquete provisional `com.pjspace.launcher`, Android mínimo 8.0 / API 26.
@@ -16,10 +18,9 @@ En esta PC, la copia portátil de Java está en `../../work/jdk17/jdk-17.0.21+9`
 
 ## Usar
 
-- Menú → Ajustes → Elegir como pantalla de inicio: Android solicita seleccionar el launcher. Para volver al anterior, usá Ajustes de Android → Aplicaciones predeterminadas → Inicio.
-- Menú → Aplicaciones: búsqueda y apertura de aplicaciones del perfil actual.
-- El inicio usa pantalla completa. Deslizá desde el borde para mostrar temporalmente las barras de Android.
-- Menú → Editar escritorio (o mantener pulsado el fondo libre): arrastrá la barra superior de una tarjeta; arrastrá ↘ para cambiar su tamaño. Listo termina la edición. Las tarjetas pueden superponerse; la última se muestra encima. Los controles de edición flotan abajo, sin reducir el escritorio.
+- Ajustes → Elegir como pantalla de inicio: Android solicita seleccionar el launcher. Para volver al anterior, usá Ajustes de Android → Aplicaciones predeterminadas → Inicio.
+- Apps: búsqueda y apertura de aplicaciones del perfil actual.
+- Editar escritorio: arrastrá la barra superior de una tarjeta; arrastrá ↘ para cambiar su tamaño. Listo termina la edición. Las tarjetas pueden superponerse; la última se muestra encima.
 - + Nota agrega una nota independiente; + Widget abre el selector del sistema. Cada proveedor puede solicitar configuración. × elimina la tarjeta y libera su widget.
 - Cuatro gestos sobre el fondo libre: configurables en Ajustes. Por defecto, arriba abre Apps. Los gestos no se activan mientras editás.
 - Posiciones, tamaños, notas y gestos se guardan localmente. Las coordenadas proporcionales se adaptan al espacio disponible.

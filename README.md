@@ -1,4 +1,4 @@
-# PJ Space · primera versión oficial (restauración 0.1.1)
+# PJ Space · base oficial · versión 0.1.2
 
 Estrená celular sin comprar otro. Todo lo útil al alcance de la mano.
 
@@ -8,7 +8,7 @@ Estrená celular sin comprar otro. Todo lo útil al alcance de la mano.
 
 Prototipo en desarrollo. Instalá las actualizaciones sobre la versión anterior para conservar el escritorio.
 
-La base oficial vuelve a la primera versión (0.1), que el usuario encontró más fluida. La publicación 0.1.1 restaura su código y usa un número interno superior para poder instalarse sobre 0.2 sin desinstalar. A partir de ahora se hará y probará un cambio por vez. Ver [BASE-OFICIAL.md](BASE-OFICIAL.md). La 0.2 se conserva únicamente como historial.
+La base oficial es la primera versión (0.1), restaurada como 0.1.1. La versión 0.1.2 incorpora únicamente el cambio de escritorios y aplicaciones elegidas para los gestos verticales. Se hará y probará un cambio por vez. Ver [CAMBIOS-0.1.2.md](CAMBIOS-0.1.2.md) y [BASE-OFICIAL.md](BASE-OFICIAL.md). La 0.2 se conserva únicamente como historial.
 
 ## Abrir
 
@@ -19,10 +19,12 @@ En esta PC, la copia portátil de Java está en `../../work/jdk17/jdk-17.0.21+9`
 ## Usar
 
 - Ajustes → Elegir como pantalla de inicio: Android solicita seleccionar el launcher. Para volver al anterior, usá Ajustes de Android → Aplicaciones predeterminadas → Inicio.
+- Tres páginas: escritorio vacío a la izquierda, escritorio original en el centro y Apps a la derecha. Arrastrá horizontalmente para navegar; Inicio vuelve al centro.
 - Apps: búsqueda y apertura de aplicaciones del perfil actual.
 - Editar escritorio: arrastrá la barra superior de una tarjeta; arrastrá ↘ para cambiar su tamaño. Listo termina la edición. Las tarjetas pueden superponerse; la última se muestra encima.
 - + Nota agrega una nota independiente; + Widget abre el selector del sistema. Cada proveedor puede solicitar configuración. × elimina la tarjeta y libera su widget.
-- Cuatro gestos sobre el fondo libre: configurables en Ajustes. Por defecto, arriba abre Apps. Los gestos no se activan mientras editás.
+- Arriba y abajo sobre el fondo libre abren las apps específicas elegidas en Ajustes. El selector permite buscar entre todas las apps disponibles. Izquierda y derecha quedan reservados para cambiar de página. Los gestos no se activan mientras editás.
+- Cada escritorio guarda sus propias tarjetas. El izquierdo empieza vacío. Al actualizar desde una versión anterior, asigná nuevamente Arriba y Abajo a las aplicaciones que quieras.
 - Posiciones, tamaños, notas y gestos se guardan localmente. Las coordenadas proporcionales se adaptan al espacio disponible.
 
 ## Alcance y próximos pasos
@@ -37,7 +39,7 @@ Se eligieron versiones fijas y conservadoras de las dependencias para hacer repr
 2. Buscar y abrir una aplicación; regresar a Inicio.
 3. Mover y redimensionar tarjetas hasta los bordes. Crear dos notas con textos diferentes.
 4. Cerrar el proceso y reabrir: comprobar notas y geometría.
-5. Cambiar los cuatro gestos y probarlos sobre el fondo.
+5. Asignar dos aplicaciones concretas a Arriba y Abajo y probarlas sobre el fondo. Comprobar que los gestos horizontales solo cambian de escritorio.
 6. Agregar, configurar, redimensionar y eliminar un widget de otro proveedor; cancelar también su selector.
 7. Rotar el dispositivo y repetir con teclado abierto y tamaño de fuente grande.
 

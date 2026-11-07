@@ -11,10 +11,20 @@ class DesktopTest {
             assertTrue(tile.w >= .25f && tile.h >= .18f)
         }
     }
-    @Test fun gesturesChooseDominantAxis() {
-        assertEquals("Arriba", direction(10f, -80f))
-        assertEquals("Abajo", direction(-5f, 80f))
-        assertEquals("Izquierda", direction(-80f, 10f))
-        assertEquals("Derecha", direction(80f, -10f))
+    @Test fun verticalGesturesRequireDistanceAndChooseDirection() {
+        assertNull(verticalGestureDirection(0f, 64f))
+        assertNull(verticalGestureDirection(63f, 64f))
+        assertNull(verticalGestureDirection(-63f, 64f))
+        assertEquals("Arriba", verticalGestureDirection(-64f, 64f))
+        assertEquals("Abajo", verticalGestureDirection(64f, 64f))
+    }
+    @Test fun desktopStoragePreservesOldCentralKeyAndSeparatesLeft() {
+        assertEquals("tiles", desktopStorageKey(CENTRAL_DESKTOP))
+        assertNotEquals(desktopStorageKey(CENTRAL_DESKTOP), desktopStorageKey(LEFT_DESKTOP))
+        assertTrue(defaultTiles(LEFT_DESKTOP).isEmpty())
+        assertEquals(initialTiles, defaultTiles(CENTRAL_DESKTOP))
+    }
+    @Test(expected = IllegalStateException::class) fun appsPageCannotStoreWidgets() {
+        desktopStorageKey(APPS_DESKTOP)
     }
 }

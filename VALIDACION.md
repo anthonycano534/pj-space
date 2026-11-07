@@ -1,5 +1,15 @@
 # Validación · 7 de noviembre de 2026
 
+## Escritorios y apps por gesto · 0.1.2
+
+- Compilación `assembleDebug testDebugUnitTest`: correcta. Cuatro pruebas aprobadas, sin fallos ni errores.
+- Se comprueban límites de tarjetas, umbral y dirección de los gestos verticales, aislamiento de las claves de ambos escritorios y exclusión de tarjetas en la página de Apps.
+- El escritorio central conserva la clave de almacenamiento original; el izquierdo tiene su propia clave y empieza sin tarjetas.
+- Android gestiona el arrastre horizontal mediante HorizontalPager. El detector vertical está limitado al fondo libre de los escritorios y se desactiva durante edición. La lista de apps conserva su desplazamiento vertical normal.
+- Los dos gestos guardan el componente real de la app seleccionada. Se retiraron las acciones prefijadas y las asignaciones de izquierda/derecha.
+- Se mantiene la firma anterior y versionCode aumenta a 4 para instalar como actualización.
+- Pendiente de dispositivo: fluidez de los desplazamientos, arbitraje de gestos diagonales, apertura de apps elegidas, widgets y persistencia tras cierre. Ver prueba corta de CAMBIOS-0.1.2.md. La compilación y las pruebas unitarias no validan estas interacciones.
+
 ## Restauración oficial 0.1.1
 
 - MainActivity.kt y Desktop.kt coinciden exactamente (SHA-256) con los archivos de PJSpace-0.1-source.zip.

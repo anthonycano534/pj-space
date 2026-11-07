@@ -1,5 +1,15 @@
 # Validación · 7 de noviembre de 2026
 
+## Reloj de referencia y acciones fijas · 0.1.5
+
+- Compilación `assembleDebug testDebugUnitTest`: correcta. Once pruebas unitarias aprobadas, sin fallos ni errores.
+- Nuevas pruebas cubren que el pincel solo elige escritorio izquierdo o central, incluso al tocarlo en Apps, y que las acciones de teléfono/cámara tienen claves de almacenamiento independientes.
+- El diseño nuevo se implementa en componentes propios y un vector local del pájaro; no requiere recursos de red ni proveedores de widgets para el reloj/barra. El pájaro no depende de la app seleccionada.
+- El botón de búsqueda no contiene entrada editable. El campo con FocusRequester solo se compone tras tocar la lupa; al cerrar/salir se quita el campo, se borra el filtro y se solicita ocultar teclado. La interacción real con IME requiere prueba de dispositivo.
+- El editor del reloj conserva borradores mientras se elige app; tamaño/texto/app solo se guardan al pulsar Guardar. Las asignaciones inferiores se guardan por separado y pueden volver a sus acciones predeterminadas.
+- Se conservan firma, geometría, notas, tamaños, gestos y widgets externos. Los iconos fijos no se incluyen en las listas de tarjetas editables.
+- Pendiente de dispositivo: parecido visual con la referencia, tacto del pincel, foco/teclado, apertura de apps por barra/esquinas, uso en tablet y fluidez. No se realizó validación visual en Android ni medición de recursos.
+
 ## Inicio completo, Atrás y tipografía · 0.1.4
 
 - Compilación final `assembleDebug testDebugUnitTest`: correcta. Nueve pruebas aprobadas, cero fallos y cero errores.

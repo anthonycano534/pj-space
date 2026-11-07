@@ -2,6 +2,10 @@ package com.pjspace.launcher
 
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
@@ -9,17 +13,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -50,39 +57,63 @@ import java.util.Locale
     }
 }
 
-/** Native Compose component: no AppWidgetHost, background service or per-second timer. */
-@Composable fun DigitalClock(fontSizeSp: Float = 96f) {
+/** Clock and action bar are own components; the bird never depends on the assigned app. */
+@Composable fun DigitalClock(fontSizeSp: Float = 96f, actionText: String = "Busca...", onAction: (() -> Unit)? = null) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var now by remember { mutableStateOf(LocalDateTime.now()) }
     LaunchedEffect(lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            while (true) {
-                now = LocalDateTime.now()
-                delay(60_000 - System.currentTimeMillis() % 60_000 + 25)
+            while (true) { now = LocalDateTime.now(); delay(60_000 - System.currentTimeMillis() % 60_000 + 25) }
+        }
+    }
+    val locale = Locale.getDefault()
+    val time = now.format(DateTimeFormatter.ofPattern(if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a", locale))
+    val dateParts = listOf(now.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, locale).uppercase(locale),
+        now.format(DateTimeFormatter.ofPattern("MMMM", locale)), now.dayOfMonth.toString())
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val bandHeight = (maxHeight.value * .18f).coerceIn(24f, 48f).dp
+        val barHeight = (maxHeight.value * .23f).coerceIn(36f, 56f).dp
+        val gap = (maxHeight.value * .025f).coerceIn(3f, 8f).dp
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(gap)) {
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().border(3.dp, Color.White).padding(6.dp), contentAlignment = Alignment.Center) {
+                val requested = componentFontSize("Reloj", fontSizeSp)
+                val style = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Light,
+                    fontSize = requested.sp, lineHeight = (requested * 1.1f).sp)
+                val measured = measurer.measure(time, style, softWrap = false, maxLines = 1)
+                val fitted = fittedClockFont(requested, with(density) { maxWidth.toPx() }, with(density) { maxHeight.toPx() }, measured.size.width.toFloat(), measured.size.height.toFloat())
+                Text(time, color = Color.White, style = style.copy(fontSize = fitted.sp, lineHeight = (fitted * 1.1f).sp), maxLines = 1, softWrap = false)
+            }
+            Row(Modifier.fillMaxWidth().height(bandHeight).background(Color.White), verticalAlignment = Alignment.CenterVertically) {
+                ClockDatePart(dateParts[0], Modifier.weight(1.35f))
+                Box(Modifier.width(1.dp).fillMaxHeight(.65f).background(Color.Black.copy(alpha = .45f)))
+                ClockDatePart(dateParts[1], Modifier.weight(1.25f))
+                Box(Modifier.width(1.dp).fillMaxHeight(.65f).background(Color.Black.copy(alpha = .45f)))
+                ClockDatePart(dateParts[2], Modifier.weight(.45f))
+            }
+            Surface(onClick = { onAction?.invoke() }, enabled = onAction != null,
+                modifier = Modifier.fillMaxWidth().height(barHeight), shape = RoundedCornerShape(50), color = Color.White, contentColor = Color.Black) {
+                Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Image(painterResource(R.drawable.ic_bird), contentDescription = null, modifier = Modifier.size((barHeight.value * .65f).dp))
+                    Text(actionText.ifBlank { "Busca..." }, Modifier.weight(1f), color = Color.Black, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    SearchIcon(Color.Black)
+                }
             }
         }
     }
-    val twentyFourHour = DateFormat.is24HourFormat(context)
-    val time = now.format(DateTimeFormatter.ofPattern(if (twentyFourHour) "HH:mm" else "h:mm a", Locale.getDefault()))
-    val day = now.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(Locale.getDefault()))
-    val measurer = rememberTextMeasurer()
+}
+
+@Composable private fun ClockDatePart(text: String, modifier: Modifier) {
     val density = LocalDensity.current
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val requested = componentFontSize("Reloj", fontSizeSp)
-        val dateSize = (requested * .2f).coerceIn(12f, 20f)
-        val dateStyle = TextStyle(fontSize = dateSize.sp, lineHeight = (dateSize * 1.25f).sp)
-        val timeStyle = TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Light, fontSize = requested.sp, lineHeight = (requested * 1.1f).sp)
-        val widthPx = with(density) { maxWidth.toPx() }
-        val heightPx = with(density) { maxHeight.toPx() }
-        val dateHeight = measurer.measure(day, dateStyle, maxLines = 2, constraints = Constraints(maxWidth = widthPx.toInt().coerceAtLeast(1))).size.height
-        val timeMeasure = measurer.measure(time, timeStyle, softWrap = false, maxLines = 1)
-        val size = fittedClockFont(requested, widthPx, heightPx - dateHeight - with(density) { 8.dp.toPx() }, timeMeasure.size.width.toFloat(), timeMeasure.size.height.toFloat())
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-            Text(time, color = Color.White, style = timeStyle.copy(fontSize = size.sp, lineHeight = (size * 1.1f).sp), maxLines = 1, softWrap = false)
-            Spacer(Modifier.height(8.dp))
-            Text(day, color = Color.White, style = dateStyle, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints(modifier.fillMaxHeight().padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
+        val requested = 22f
+        val style = TextStyle(fontSize = requested.sp, lineHeight = 26.sp)
+        val measured = measurer.measure(text, style, softWrap = false, maxLines = 1)
+        val fitted = fittedClockFont(requested, with(density) { maxWidth.toPx() }, with(density) { maxHeight.toPx() }, measured.size.width.toFloat(), measured.size.height.toFloat())
+        Text(text, color = Color.Black, fontSize = fitted.sp, lineHeight = (fitted * 1.18f).sp, maxLines = 1, softWrap = false, textAlign = TextAlign.Center)
     }
 }
 
@@ -122,20 +153,3 @@ import java.util.Locale
     )
 }
 
-@Composable fun ClockSizeEditor(initialSize: Float, onSave: (Float) -> Unit, onDismiss: () -> Unit) {
-    var size by remember { mutableFloatStateOf(componentFontSize("Reloj", initialSize)) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Tamaño del reloj") },
-        text = {
-            Column {
-                Text("Tamaño de la hora: ${size.toInt()}")
-                Slider(size, { size = it }, valueRange = 24f..240f)
-                Box(Modifier.fillMaxWidth().height(170.dp)) { DigitalClock(size) }
-                Text("Agrandá también la tarjeta para dar más espacio a los números.", style = MaterialTheme.typography.bodySmall)
-            }
-        },
-        confirmButton = { TextButton(onClick = { onSave(size) }) { Text("Guardar") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
-}

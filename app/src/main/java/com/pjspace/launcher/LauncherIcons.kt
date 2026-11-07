@@ -14,7 +14,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 @Composable fun LauncherIcon(settings: Boolean) {
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(34.dp)) {
         val unit = size.minDimension / 24f
         if (settings) {
             val path = Path()
@@ -36,5 +36,39 @@ import kotlin.math.sin
             }
             drawPath(brush, Color.White)
         }
+    }
+}
+
+@Composable fun SearchIcon(color: Color = Color.White) {
+    Canvas(Modifier.size(28.dp)) {
+        val unit = size.minDimension / 24f
+        drawCircle(color, 6.5f * unit, Offset(9.5f * unit, 9.5f * unit), style = Stroke(1.8f * unit))
+        drawLine(color, Offset(14.5f * unit, 14.5f * unit), Offset(21f * unit, 21f * unit), 2f * unit, StrokeCap.Round)
+    }
+}
+
+@Composable fun PhoneIcon() {
+    Canvas(Modifier.size(34.dp)) {
+        val u = size.minDimension / 24f
+        val path = Path().apply {
+            moveTo(5f*u, 2f*u); lineTo(9f*u, 7f*u); lineTo(6.5f*u, 10f*u)
+            cubicTo(8f*u, 13.5f*u, 10.5f*u, 16f*u, 14f*u, 17.5f*u)
+            lineTo(17f*u, 15f*u); lineTo(22f*u, 19f*u); lineTo(20f*u, 22f*u)
+            cubicTo(10f*u, 23f*u, 1f*u, 14f*u, 2f*u, 4f*u); close()
+        }
+        drawPath(path, Color.White, style = Stroke(1.6f*u))
+    }
+}
+
+@Composable fun CameraIcon() {
+    Canvas(Modifier.size(34.dp)) {
+        val u = size.minDimension / 24f
+        val path = Path().apply {
+            moveTo(2f*u, 7f*u); lineTo(7f*u, 7f*u); lineTo(9f*u, 4f*u)
+            lineTo(15f*u, 4f*u); lineTo(17f*u, 7f*u); lineTo(22f*u, 7f*u)
+            lineTo(22f*u, 21f*u); lineTo(2f*u, 21f*u); close()
+        }
+        drawPath(path, Color.White, style = Stroke(1.7f*u))
+        drawCircle(Color.White, 4.5f*u, Offset(12f*u, 14f*u), style = Stroke(1.7f*u))
     }
 }

@@ -50,3 +50,15 @@ fun launcherBackAction(dialogOpen: Boolean, editing: Boolean, inSettings: Boolea
     inSettings || desktop != CENTRAL_DESKTOP -> LauncherBackAction.OPEN_HOME
     else -> LauncherBackAction.STAY_HOME
 }
+
+// A brush tap may finish a drag, but can never select the apps page for editing.
+fun editingTargetPage(settled: Int, lastDesktop: Int): Int = when (settled) {
+    LEFT_DESKTOP, CENTRAL_DESKTOP -> settled
+    else -> if (lastDesktop == LEFT_DESKTOP) LEFT_DESKTOP else CENTRAL_DESKTOP
+}
+
+fun cornerBindingKey(name: String): String = when (name) {
+    "Teléfono" -> "corner-phone-app"
+    "Cámara" -> "corner-camera-app"
+    else -> error("Unknown fixed shortcut")
+}

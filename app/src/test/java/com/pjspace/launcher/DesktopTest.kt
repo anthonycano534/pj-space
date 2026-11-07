@@ -51,4 +51,16 @@ class DesktopTest {
         assertEquals(96f, componentFontSize("Reloj", null), .001f)
         assertEquals(96f, componentFontSize("Reloj", Float.NaN), .001f)
     }
+    @Test fun brushNeverSelectsApplicationsAsAnEditableDesktop() {
+        assertEquals(LEFT_DESKTOP, editingTargetPage(LEFT_DESKTOP, CENTRAL_DESKTOP))
+        assertEquals(CENTRAL_DESKTOP, editingTargetPage(CENTRAL_DESKTOP, LEFT_DESKTOP))
+        assertEquals(LEFT_DESKTOP, editingTargetPage(APPS_DESKTOP, LEFT_DESKTOP))
+        assertEquals(CENTRAL_DESKTOP, editingTargetPage(APPS_DESKTOP, CENTRAL_DESKTOP))
+        assertEquals(CENTRAL_DESKTOP, editingTargetPage(-1, APPS_DESKTOP))
+    }
+    @Test fun phoneAndCameraHaveIndependentSavedActions() {
+        assertEquals("corner-phone-app", cornerBindingKey("Teléfono"))
+        assertEquals("corner-camera-app", cornerBindingKey("Cámara"))
+        assertNotEquals(cornerBindingKey("Teléfono"), cornerBindingKey("Cámara"))
+    }
 }

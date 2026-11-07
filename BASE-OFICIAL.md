@@ -16,6 +16,8 @@ Segunda evolución autorizada: 0.1.3 incorpora negro/blanco, reloj y notas propi
 
 Tercera evolución, revisada y confirmada antes de programar: 0.1.4 corrige Atrás, usa pantalla completa con pincel arriba a la izquierda y ajustes arriba a la derecha, y permite tamaños de letra por reloj/nota. No se restableció la publicación descartada 0.2. Ver CAMBIOS-0.1.4.md.
 
+Cuarta evolución confirmada: 0.1.5 cambia el reloj a la segunda referencia, agrega su barra de pájaro fijo configurable, limita teclado de búsqueda al toque de lupa y corrige/agranda controles. Durante el trabajo el usuario autorizó acciones configurables también para teléfono/cámara fijos en las esquinas inferiores. Ver CAMBIOS-0.1.5.md.
+
 1. Partir de esta base oficial.
 2. Hacer un único cambio por vez.
 3. Compilar y realizar las comprobaciones correspondientes.

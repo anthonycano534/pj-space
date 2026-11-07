@@ -11,8 +11,8 @@ android {
         applicationId = "com.pjspace.launcher"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.1.4"
+        versionCode = 7
+        versionName = "0.1.5"
     }
     buildFeatures { compose = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

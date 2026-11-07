@@ -18,7 +18,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
@@ -31,6 +33,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -177,7 +183,11 @@ class MainActivity : ComponentActivity() {
         }
         val pager = rememberPagerState(initialPage = CENTRAL_DESKTOP, pageCount = { 3 })
         val scope = rememberCoroutineScope()
+        var lastEditableDesktop by remember { mutableIntStateOf(CENTRAL_DESKTOP) }
+        LaunchedEffect(pager.settledPage) { if (pager.settledPage != APPS_DESKTOP) lastEditableDesktop = pager.settledPage }
         var selectedGesture by remember { mutableStateOf<String?>(null) }
+        var selectedShortcut by remember { mutableStateOf<String?>(null) }
+        var cornerApps by remember { mutableStateOf(listOf("Teléfono", "Cámara").associateWith { prefs.getString(cornerBindingKey(it), "").orEmpty() }) }
         var bindings by remember {
             mutableStateOf(listOf("Arriba", "Abajo").associateWith { prefs.getString("gesture-app-$it", "").orEmpty() })
         }
@@ -190,6 +200,11 @@ class MainActivity : ComponentActivity() {
             editing = false
             page = "Inicio"
             scope.launch { pager.animateScrollToPage(desktop) }
+        }
+        fun openCorner(name: String) {
+            focus.clearFocus(force = true); keyboard?.hide()
+            val component = ComponentName.unflattenFromString(cornerApps[name].orEmpty())
+            open(if (component != null) Intent.makeMainActivity(component) else if (name == "Teléfono") Intent(Intent.ACTION_DIAL) else Intent("android.media.action.STILL_IMAGE_CAMERA"))
         }
         LaunchedEffect(homeRequest) {
             focus.clearFocus(force = true); keyboard?.hide()
@@ -206,8 +221,8 @@ class MainActivity : ComponentActivity() {
         // Always consume Back. At the central desktop it must never finish the HOME activity.
         BackHandler(enabled = true) {
             focus.clearFocus(force = true); keyboard?.hide()
-            when (launcherBackAction(selectedGesture != null, editing, page == "Ajustes", pager.currentPage)) {
-                LauncherBackAction.CLOSE_DIALOG -> selectedGesture = null
+            when (launcherBackAction(selectedGesture != null || selectedShortcut != null, editing, page == "Ajustes", pager.currentPage)) {
+                LauncherBackAction.CLOSE_DIALOG -> { selectedGesture = null; selectedShortcut = null }
                 LauncherBackAction.FINISH_EDITING -> editing = false
                 LauncherBackAction.OPEN_HOME -> goTo(CENTRAL_DESKTOP)
                 LauncherBackAction.STAY_HOME -> Unit
@@ -228,6 +243,12 @@ class MainActivity : ComponentActivity() {
                         val label = if (binding.isBlank()) "Sin asignar" else apps.find { it.second.flattenToString() == binding }?.first ?: "App no disponible · volver a elegir"
                         OutlinedButton(onClick = { selectedGesture = gesture }, modifier = Modifier.fillMaxWidth()) { Text("$gesture: $label") }
                     }
+                    item { Text("Accesos de las esquinas inferiores") }
+                    items(listOf("Teléfono", "Cámara")) { name ->
+                        val binding = cornerApps[name].orEmpty()
+                        val label = if (binding.isBlank()) "Acción predeterminada" else apps.find { it.second.flattenToString() == binding }?.first ?: "App no disponible · volver a elegir"
+                        OutlinedButton(onClick = { selectedShortcut = name }, modifier = Modifier.fillMaxWidth()) { Text("$name: $label") }
+                    }
                     item { Text("Estrená celular sin comprar otro", style = MaterialTheme.typography.titleMedium) }
                     item { Text("Todo lo útil al alcance de la mano.") }
                 }
@@ -236,8 +257,8 @@ class MainActivity : ComponentActivity() {
             Box(Modifier.fillMaxSize().displayCutoutPadding()) {
                 HorizontalPager(state = pager, modifier = Modifier.fillMaxSize(), userScrollEnabled = !editing, key = { it }) { index ->
                     if (index == APPS_DESKTOP) {
-                        Box(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 64.dp, bottom = 8.dp)) {
-                            AppList(onOpen = { app -> open(Intent.makeMainActivity(app)); goTo(CENTRAL_DESKTOP) })
+                        Box(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 80.dp, bottom = 80.dp)) {
+                            AppList(onOpen = { app -> open(Intent.makeMainActivity(app)); goTo(CENTRAL_DESKTOP) }, isActive = pager.settledPage == APPS_DESKTOP && !pager.isScrollInProgress)
                         }
                     } else {
                         DesktopCanvas(
@@ -253,22 +274,27 @@ class MainActivity : ComponentActivity() {
                 IconButton(
                     onClick = {
                         focus.clearFocus(force = true); keyboard?.hide()
-                        scope.launch {
-                            if (pager.currentPage == APPS_DESKTOP) pager.scrollToPage(CENTRAL_DESKTOP)
-                            editing = !editing
-                        }
+                        val target = editingTargetPage(pager.settledPage, lastEditableDesktop)
+                        editing = !editing
+                        scope.launch { pager.scrollToPage(target) }
                     },
-                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp).size(48.dp)
+                    modifier = Modifier.align(Alignment.TopStart).zIndex(20f).padding(8.dp).size(64.dp)
                         .background(Color.Black, CircleShape).semantics { contentDescription = if (editing) "Terminar edición" else "Modo edición" }
                 ) { LauncherIcon(settings = false) }
                 IconButton(
                     onClick = { focus.clearFocus(force = true); keyboard?.hide(); editing = false; page = "Ajustes" },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).size(48.dp)
+                    modifier = Modifier.align(Alignment.TopEnd).zIndex(20f).padding(8.dp).size(64.dp)
                         .background(Color.Black, CircleShape).semantics { contentDescription = "Ajustes" }
                 ) { LauncherIcon(settings = true) }
+                IconButton(onClick = { openCorner("Teléfono") },
+                    modifier = Modifier.align(Alignment.BottomStart).zIndex(20f).padding(8.dp).size(64.dp).background(Color.Black, CircleShape)
+                        .semantics { contentDescription = "Teléfono" }) { PhoneIcon() }
+                IconButton(onClick = { openCorner("Cámara") },
+                    modifier = Modifier.align(Alignment.BottomEnd).zIndex(20f).padding(8.dp).size(64.dp).background(Color.Black, CircleShape)
+                        .semantics { contentDescription = "Cámara" }) { CameraIcon() }
                 if (editing) {
                     val desktop = pager.currentPage
-                    Surface(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(8.dp)
+                    Surface(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(start = 8.dp, end = 8.dp, bottom = 80.dp)
                         .border(1.dp, Color.White, MaterialTheme.shapes.large), shape = MaterialTheme.shapes.large, color = Color.Black) {
                         Row(Modifier.horizontalScroll(rememberScrollState())) {
                             TextButton(onClick = { editing = false }) { Text("Listo") }
@@ -288,34 +314,85 @@ class MainActivity : ComponentActivity() {
                 selectedGesture = null
             })
         }
+        selectedShortcut?.let { name ->
+            AppPicker(name, onDismiss = { selectedShortcut = null }, resetLabel = "Usar acción predeterminada", onSelect = { component ->
+                val value = component?.flattenToString().orEmpty()
+                cornerApps = cornerApps + (name to value)
+                prefs.edit().putString(cornerBindingKey(name), value).apply()
+                selectedShortcut = null
+            })
+        }
     }
 
-    @Composable private fun AppList(onOpen: (ComponentName) -> Unit) {
+    @Composable private fun AppList(onOpen: (ComponentName) -> Unit, isActive: Boolean = true) {
         var query by remember { mutableStateOf("") }
+        var searching by remember { mutableStateOf(false) }
+        val focus = LocalFocusManager.current
+        val keyboard = LocalSoftwareKeyboardController.current
+        val requester = remember { FocusRequester() }
+        fun closeSearch() { focus.clearFocus(force = true); keyboard?.hide(); searching = false; query = "" }
+        LaunchedEffect(isActive) { if (!isActive) closeSearch() }
+        LaunchedEffect(searching) { if (searching && isActive) { requester.requestFocus(); keyboard?.show() } }
+        BackHandler(searching && isActive) { closeSearch() }
         val filtered = apps.filter { it.first.contains(query, true) || it.second.packageName.contains(query, true) }
         Column(Modifier.fillMaxSize()) {
-            OutlinedTextField(query, { query = it }, label = { Text("Buscar aplicación") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            if (searching) OutlinedTextField(query, { query = it }, label = { Text("Buscar aplicación") }, singleLine = true,
+                modifier = Modifier.fillMaxWidth().focusRequester(requester).onFocusChanged { if (it.isFocused && searching) keyboard?.show() },
+                leadingIcon = { SearchIcon() },
+                trailingIcon = { IconButton(onClick = { closeSearch() }, modifier = Modifier.semantics { contentDescription = "Cerrar búsqueda" }) { Text("×") } })
+            else OutlinedButton(onClick = { searching = true }, modifier = Modifier.fillMaxWidth().height(56.dp).semantics { contentDescription = "Buscar aplicaciones" }, shape = RoundedCornerShape(50)) { SearchIcon() }
             LazyColumn(Modifier.weight(1f)) {
                 items(filtered, key = { it.second.flattenToString() }) { app ->
-                    TextButton(onClick = { onOpen(app.second) }, modifier = Modifier.fillMaxWidth()) { Text(app.first) }
+                    TextButton(onClick = { closeSearch(); onOpen(app.second) }, modifier = Modifier.fillMaxWidth()) { Text(app.first) }
                 }
                 if (filtered.isEmpty()) item { Text("No se encontraron aplicaciones.") }
             }
         }
     }
 
-    @Composable private fun AppPicker(gesture: String, onDismiss: () -> Unit, onSelect: (ComponentName?) -> Unit) {
+    @Composable private fun AppPicker(gesture: String, onDismiss: () -> Unit, onSelect: (ComponentName?) -> Unit, resetLabel: String = "Sin asignar") {
         AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text("Aplicación para $gesture") },
             text = {
                 Column(Modifier.height(400.dp)) {
-                    TextButton(onClick = { onSelect(null) }) { Text("Sin asignar") }
+                    TextButton(onClick = { onSelect(null) }) { Text(resetLabel) }
                     AppList(onOpen = { onSelect(it) })
                 }
             },
             confirmButton = {},
             dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        )
+    }
+
+    @Composable private fun ClockEditor(initialSize: Float, initialLabel: String, initialApp: String,
+        onSave: (Float, String, String) -> Unit, onDismiss: () -> Unit) {
+        var size by remember { mutableFloatStateOf(initialSize) }
+        var label by remember { mutableStateOf(initialLabel) }
+        var app by remember { mutableStateOf(initialApp) }
+        var choosingApp by remember { mutableStateOf(false) }
+        val focus = LocalFocusManager.current
+        val keyboard = LocalSoftwareKeyboardController.current
+        fun releaseKeyboard() { focus.clearFocus(force = true); keyboard?.hide() }
+        if (choosingApp) {
+            AppPicker("la barra del reloj", onDismiss = { choosingApp = false }, onSelect = { component -> app = component?.flattenToString().orEmpty(); choosingApp = false })
+        } else AlertDialog(
+            onDismissRequest = { releaseKeyboard(); onDismiss() },
+            title = { Text("Editar reloj y barra") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Tamaño de hora: ${size.toInt()}")
+                    Slider(size, { size = it }, valueRange = 24f..240f)
+                    OutlinedTextField(label, { label = it }, label = { Text("Texto de la barra") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedButton(onClick = { releaseKeyboard(); choosingApp = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Abrir: " + (apps.find { it.second.flattenToString() == app }?.first ?: if (app.isBlank()) "Elegir aplicación" else "App no disponible"))
+                    }
+                    Box(Modifier.fillMaxWidth().height(210.dp)) { DigitalClock(size, label) }
+                    Text("El pájaro es fijo. Agrandá la tarjeta para dar más espacio a la hora.", style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = { TextButton(onClick = { releaseKeyboard(); onSave(size, label, app) }) { Text("Guardar") } },
+            dismissButton = { TextButton(onClick = { releaseKeyboard(); onDismiss() }) { Text("Cancelar") } }
         )
     }
 
@@ -329,6 +406,8 @@ class MainActivity : ComponentActivity() {
         val latestChange by rememberUpdatedState(onTilesChange)
         val latestGesture by rememberUpdatedState(onVerticalGesture)
         val notes = remember { mutableStateMapOf<String, String>() }
+        val clockLabels = remember { mutableStateMapOf<String, String>() }
+        val clockApps = remember { mutableStateMapOf<String, String>() }
         var editingNote by remember { mutableStateOf<String?>(null) }
         var editingClock by remember { mutableStateOf<String?>(null) }
         LaunchedEffect(editing) { if (!editing) { editingNote = null; editingClock = null } }
@@ -367,7 +446,7 @@ class MainActivity : ComponentActivity() {
                                     detectDragGestures(onDragEnd = { latestChange(latestTiles, true) }, onDragCancel = { latestChange(latestTiles, true) }) { change, delta -> change.consume(); update(delta.x, delta.y, false) }
                                 })
                                 if (tile.kind == "Nota") TextButton(onClick = { editingNote = tile.id }) { Text("Editar") }
-                                if (tile.kind == "Reloj") TextButton(onClick = { editingClock = tile.id }) { Text("Tamaño") }
+                                if (tile.kind == "Reloj") TextButton(onClick = { editingClock = tile.id }) { Text("Editar") }
                                 TextButton(onClick = {
                                     tile.kind.substringAfter("Widget:", "").toIntOrNull()?.let { widgetHost.deleteAppWidgetId(it) }
                                     latestChange(latestTiles.filterNot { it.id == tile.id }, true)
@@ -381,7 +460,19 @@ class MainActivity : ComponentActivity() {
                                     else AndroidView(factory = { widgetHost.createView(it, widgetId, info) }, modifier = Modifier.fillMaxSize(), update = { view ->
                                         view.updateAppWidgetSize(null, (width.value * tile.w).toInt(), (height.value * tile.h - 80).toInt().coerceAtLeast(40), (width.value * tile.w).toInt(), (height.value * tile.h - 80).toInt().coerceAtLeast(40))
                                     })
-                                } else if (tile.kind == "Reloj") DigitalClock(componentFontSize(tile.kind, tile.fontSizeSp))
+                                } else if (tile.kind == "Reloj") DigitalClock(
+                                    fontSizeSp = componentFontSize(tile.kind, tile.fontSizeSp),
+                                    actionText = clockLabels[tile.id] ?: prefs.getString("clock-label-${tile.id}", "Busca...").orEmpty(),
+                                    onAction = {
+                                        if (editing) editingClock = tile.id
+                                        else {
+                                            val binding = clockApps[tile.id] ?: prefs.getString("clock-app-${tile.id}", "").orEmpty()
+                                            val component = ComponentName.unflattenFromString(binding)
+                                            if (component != null) open(Intent.makeMainActivity(component))
+                                            else Toast.makeText(this@MainActivity, "Elegí la aplicación de la barra en Modo edición → Editar reloj", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                )
                                 else NotePreview(notes[tile.id] ?: prefs.getString("note-${tile.id}", "").orEmpty(), componentFontSize(tile.kind, tile.fontSizeSp))
                             }
                             if (editing) Text("↘", Modifier.align(Alignment.End).size(48.dp).pointerInput(tile.id, wp, hp) {
@@ -405,9 +496,16 @@ class MainActivity : ComponentActivity() {
             )
         }
         if (editing) editingClock?.let { id ->
-            if (tiles.any { it.id == id && it.kind == "Reloj" }) ClockSizeEditor(
+            if (tiles.any { it.id == id && it.kind == "Reloj" }) ClockEditor(
                 initialSize = componentFontSize("Reloj", tiles.find { it.id == id }?.fontSizeSp),
-                onSave = { size -> latestChange(latestTiles.map { if (it.id == id) it.copy(fontSizeSp = size) else it }, true); editingClock = null },
+                initialLabel = clockLabels[id] ?: prefs.getString("clock-label-$id", "Busca...").orEmpty(),
+                initialApp = clockApps[id] ?: prefs.getString("clock-app-$id", "").orEmpty(),
+                onSave = { size, label, app ->
+                    clockLabels[id] = label; clockApps[id] = app
+                    prefs.edit().putString("clock-label-$id", label).putString("clock-app-$id", app).apply()
+                    latestChange(latestTiles.map { if (it.id == id) it.copy(fontSizeSp = size) else it }, true)
+                    editingClock = null
+                },
                 onDismiss = { editingClock = null }
             )
         }

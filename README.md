@@ -1,4 +1,4 @@
-# PJ Space · base oficial · versión 0.1.4
+# PJ Space · base oficial · versión 0.1.5
 
 Estrená celular sin comprar otro. Todo lo útil al alcance de la mano.
 
@@ -8,7 +8,7 @@ Estrená celular sin comprar otro. Todo lo útil al alcance de la mano.
 
 Prototipo en desarrollo. Instalá las actualizaciones sobre la versión anterior para conservar el escritorio.
 
-La base oficial es la primera versión (0.1), restaurada como 0.1.1. La versión 0.1.4 implementa los cambios confirmados: Atrás sin cerrar el inicio, pantalla completa con dos iconos flotantes y tamaños de texto por tarjeta. Mantiene los escritorios, gestos, blanco/negro y componentes de 0.1.2/0.1.3. Ver [CAMBIOS-0.1.4.md](CAMBIOS-0.1.4.md) y [BASE-OFICIAL.md](BASE-OFICIAL.md). La publicación 0.2 se retiró; su código sigue en el historial.
+La base oficial es la primera versión (0.1), restaurada como 0.1.1. La versión 0.1.5 incorpora el nuevo reloj de referencia, barra con pájaro fijo y app asignable, búsqueda bajo demanda y cuatro accesos fijos con acciones configurables en los inferiores. Mantiene Atrás, escritorios, gestos, blanco/negro y tamaños por tarjeta. Ver [CAMBIOS-0.1.5.md](CAMBIOS-0.1.5.md) y [BASE-OFICIAL.md](BASE-OFICIAL.md). La publicación 0.2 se retiró; su código sigue en el historial.
 
 ## Abrir
 
@@ -20,10 +20,11 @@ En esta PC, la copia portátil de Java está en `../../work/jdk17/jdk-17.0.21+9`
 
 - Engranaje arriba a la derecha → Ajustes → Elegir como pantalla de inicio: Android solicita seleccionar el launcher. Para volver al anterior, usá Ajustes de Android → Aplicaciones predeterminadas → Inicio.
 - Tres páginas: escritorio vacío a la izquierda, escritorio original en el centro y Apps a la derecha. Arrastrá horizontalmente para navegar; Inicio vuelve al centro.
-- Apps: búsqueda y apertura de aplicaciones del perfil actual.
+- Apps: búsqueda y apertura de aplicaciones del perfil actual. El teclado solo aparece al tocar el botón alargado de lupa; Atrás o × cierra la búsqueda.
 - Pincel arriba a la izquierda: activa Modo edición. Arrastrá la barra superior de una tarjeta y ↘ para cambiar su tamaño. Listo o el pincel termina la edición. Los controles flotan y no reducen ni desplazan el escritorio.
 - + Nota agrega una nota propia. Editar abre el editor de texto y tamaño de letra, con Guardar/Cancelar. En Inicio, las notas son de lectura y no abren el teclado.
-- + Reloj agrega el componente digital propio con hora, día y fecha. Tamaño permite cambiar el tamaño de hora; ampliá su tarjeta para que los números tengan espacio. No necesita widgets externos. + Widget externo conserva el selector del sistema, como opción secundaria; los ya colocados se mantienen.
+- + Reloj agrega la hora enmarcada con banda blanca de fecha y barra del pájaro. Editar permite cambiar tamaño de hora, texto de barra y app que abre al tocarla. El pájaro no cambia. Ampliá la tarjeta para que el reloj tenga espacio. + Widget externo conserva el selector del sistema.
+- Teléfono abajo a la izquierda abre el marcador; cámara abajo a la derecha abre la cámara. Sus acciones se cambian en Ajustes → Accesos de las esquinas inferiores, útil también en tablet. Los cuatro iconos quedan fijos y no se mueven al editar.
 - Atrás cierra diálogos/edición o vuelve al principal. En el principal permanece sin cerrar el launcher. Deslizá desde el borde para mostrar temporalmente las barras del sistema.
 - Arriba y abajo sobre el fondo libre abren las apps específicas elegidas en Ajustes. El selector permite buscar entre todas las apps disponibles. Izquierda y derecha quedan reservados para cambiar de página. Los gestos no se activan mientras editás.
 - Cada escritorio guarda sus propias tarjetas. El izquierdo empieza vacío. Al actualizar desde una versión anterior, asigná nuevamente Arriba y Abajo a las aplicaciones que quieras.

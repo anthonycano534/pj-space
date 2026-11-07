@@ -12,6 +12,8 @@ La versión 0.2 queda en el historial y en su publicación para referencia. La r
 
 Primera evolución autorizada: 0.1.2 incorpora páginas laterales (izquierda vacía, derecha Apps) y corrige Arriba/Abajo para abrir aplicaciones concretas elegidas por el usuario. Los cambios de 0.2 siguen revertidos. Ver CAMBIOS-0.1.2.md.
 
+Segunda evolución autorizada: 0.1.3 incorpora negro/blanco, reloj y notas propios, y edición de notas únicamente en Modo edición. Por aclaración expresa del usuario, se priorizan los componentes propios y se mantiene la posibilidad de agregar widgets externos. Ver CAMBIOS-0.1.3.md.
+
 1. Partir de esta base oficial.
 2. Hacer un único cambio por vez.
 3. Compilar y realizar las comprobaciones correspondientes.

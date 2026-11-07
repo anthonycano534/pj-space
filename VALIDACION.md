@@ -1,5 +1,14 @@
 # Validación · 7 de noviembre de 2026
 
+## Negro/blanco y Modo edición · 0.1.3
+
+- Compilación final `assembleDebug testDebugUnitTest`: correcta. Cuatro pruebas existentes aprobadas. No se añadieron pruebas que simulen la implementación de la interfaz.
+- Revisión de entrada de texto: NotePreview usa Text; el campo editable de notas solo se crea en NoteEditor, abierto desde Modo edición. Guardar persiste y Cancelar descarta el borrador. Al salir de edición se limpia foco y se solicita ocultar el teclado.
+- PJSpaceTheme usa negro y blanco; el tema de actividad y barras también usa fondo negro con texto claro. Los widgets externos conservan el estilo de su proveedor.
+- El reloj digital propio actualiza al minuto dentro de repeatOnLifecycle(STARTED). El host de widgets externos se inicia únicamente si hay widgets externos, o después de agregar uno.
+- Se mantiene la opción Widget externo tras las opciones propias, según aclaración expresa del usuario. Se mantienen las tarjetas y notas existentes y los gestos de 0.1.2.
+- Pendiente de dispositivo: apariencia, tocar notas sin teclado, editor con Guardar/Cancelar, teclado al terminar edición, reloj en ambos escritorios, selector externo y regresiones de gestos. No se midieron memoria, batería ni fluidez.
+
 ## Escritorios y apps por gesto · 0.1.2
 
 - Compilación `assembleDebug testDebugUnitTest`: correcta. Cuatro pruebas aprobadas, sin fallos ni errores.

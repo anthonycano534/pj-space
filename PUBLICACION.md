@@ -5,7 +5,7 @@ Repositorio: `anthonycano534/pj-space`, público.
 ## Publicación principal actual
 
 1. Subir el código fuente de esta carpeta respetando `.gitignore`.
-2. Crear la versión `v0.1.2` con las notas de `CAMBIOS-0.1.2.md`.
+2. Crear la versión `v0.1.3` con las notas de `CAMBIOS-0.1.3.md`.
 3. Adjuntar el APK comprobado con el nombre **PJSpace.apk**.
 4. Marcarla como la versión más reciente.
 

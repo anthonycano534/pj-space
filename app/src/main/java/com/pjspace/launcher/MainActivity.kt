@@ -14,6 +14,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -29,15 +30,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
     private var homeRequest by mutableIntStateOf(0)
     private var apps by mutableStateOf(emptyList<Pair<String, ComponentName>>())
     private val widgetHost by lazy { AppWidgetHost(this, 1024) }
+    private var widgetListening = false
     private val widgetManager by lazy { AppWidgetManager.getInstance(this) }
     private var addedWidget by mutableStateOf<Int?>(null)
     private var pendingWidget = -1
@@ -88,8 +89,14 @@ class MainActivity : ComponentActivity() {
     }
     private fun finishWidget() { if (pendingWidget >= 0) { addedWidgetDesktop = pendingWidgetDesktop; addedWidget = pendingWidget }; pendingWidget = -1 }
     private fun cancelWidget() { if (pendingWidget >= 0) widgetHost.deleteAppWidgetId(pendingWidget); pendingWidget = -1 }
-    override fun onStart() { super.onStart(); widgetHost.startListening() }
-    override fun onStop() { widgetHost.stopListening(); super.onStop() }
+    override fun onStart() {
+        super.onStart()
+        // Own clocks and notes never start the external host; only selected external widgets do.
+        if (listOf(LEFT_DESKTOP, CENTRAL_DESKTOP).any { desktop -> loadTiles(desktop).any { it.kind.startsWith("Widget:") } }) {
+            widgetHost.startListening(); widgetListening = true
+        }
+    }
+    override fun onStop() { if (widgetListening) { widgetHost.stopListening(); widgetListening = false }; super.onStop() }
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("pendingWidget", pendingWidget)
         outState.putInt("pendingWidgetDesktop", pendingWidgetDesktop)
@@ -100,7 +107,7 @@ class MainActivity : ComponentActivity() {
         pendingWidget = savedInstanceState?.getInt("pendingWidget", -1) ?: -1
         pendingWidgetDesktop = savedInstanceState?.getInt("pendingWidgetDesktop", CENTRAL_DESKTOP) ?: CENTRAL_DESKTOP
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFFB5DFC5), background = Color(0xFF101614))) {
+            PJSpaceTheme {
                 Surface(Modifier.fillMaxSize()) { Home() }
             }
         }
@@ -140,6 +147,9 @@ class MainActivity : ComponentActivity() {
     }
     @Composable private fun Home() {
         var editing by remember { mutableStateOf(false) }
+        val focus = LocalFocusManager.current
+        val keyboard = LocalSoftwareKeyboardController.current
+        LaunchedEffect(editing) { if (!editing) { focus.clearFocus(force = true); keyboard?.hide() } }
         val layouts = remember {
             mutableStateMapOf(LEFT_DESKTOP to loadTiles(LEFT_DESKTOP), CENTRAL_DESKTOP to loadTiles(CENTRAL_DESKTOP))
         }
@@ -154,6 +164,7 @@ class MainActivity : ComponentActivity() {
             if (persist) saveTiles(desktop, tiles)
         }
         fun goTo(desktop: Int) {
+            focus.clearFocus(force = true); keyboard?.hide()
             editing = false
             page = "Inicio"
             scope.launch { pager.animateScrollToPage(desktop) }
@@ -163,6 +174,7 @@ class MainActivity : ComponentActivity() {
             addedWidget?.let { id ->
                 val desktop = addedWidgetDesktop
                 updateLayout(desktop, layouts[desktop].orEmpty() + Tile("widget-$id", "Widget:$id", .05f, .05f, .9f, .4f))
+                if (!widgetListening) { widgetHost.startListening(); widgetListening = true }
                 addedWidget = null
             }
         }
@@ -184,7 +196,7 @@ class MainActivity : ComponentActivity() {
             }
             if (page == "Ajustes") {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    item { Button(onClick = { chooseHome() }) { Text("Elegir como pantalla de inicio") } }
+                    item { OutlinedButton(onClick = { chooseHome() }) { Text("Elegir como pantalla de inicio") } }
                     item { Text("Deslizar a izquierda o derecha cambia de escritorio.") }
                     item { Text("Arriba y abajo abren la aplicación que elijas. Usalos sobre el fondo libre.") }
                     items(listOf("Arriba", "Abajo")) { gesture ->
@@ -206,18 +218,18 @@ class MainActivity : ComponentActivity() {
                 }, style = MaterialTheme.typography.labelMedium)
                 if (desktop != APPS_DESKTOP) {
                     Row(Modifier.horizontalScroll(rememberScrollState())) {
-                        TextButton(onClick = { editing = !editing }) { Text(if (editing) "Listo" else "Editar escritorio") }
+                        TextButton(onClick = { editing = !editing }) { Text(if (editing) "Terminar edición" else "Modo edición") }
                         if (editing) {
                             TextButton(onClick = {
                                 updateLayout(desktop, layouts[desktop].orEmpty() + Tile("note-$desktop-${System.nanoTime()}", "Nota", .05f, .05f, .8f, .35f))
                             }) { Text("+ Nota") }
-                            TextButton(onClick = { addWidget(desktop) }) { Text("+ Widget") }
                             if (layouts[desktop].orEmpty().none { it.kind == "Reloj" }) TextButton(onClick = {
                                 updateLayout(desktop, layouts[desktop].orEmpty() + initialTiles.first().copy(id = "clock-$desktop"))
                             }) { Text("+ Reloj") }
+                            TextButton(onClick = { addWidget(desktop) }) { Text("+ Widget externo") }
                         }
                     }
-                    if (editing) Text("Arrastrá la barra superior. Cambiá el tamaño desde ↘.", style = MaterialTheme.typography.bodySmall)
+                    if (editing) Text("Mové desde la barra. Redimensioná desde ↘. Tocá Editar para escribir.", style = MaterialTheme.typography.bodySmall)
                 }
                 HorizontalPager(
                     state = pager,
@@ -290,10 +302,8 @@ class MainActivity : ComponentActivity() {
         val latestChange by rememberUpdatedState(onTilesChange)
         val latestGesture by rememberUpdatedState(onVerticalGesture)
         val notes = remember { mutableStateMapOf<String, String>() }
-        var now by remember { mutableStateOf(LocalDateTime.now()) }
-        if (tiles.any { it.kind == "Reloj" }) LaunchedEffect(Unit) {
-            while (true) { now = LocalDateTime.now(); delay(60_000 - System.currentTimeMillis() % 60_000 + 25) }
-        }
+        var editingNote by remember { mutableStateOf<String?>(null) }
+        LaunchedEffect(editing) { if (!editing) editingNote = null }
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val width = maxWidth; val height = maxHeight
             val density = LocalDensity.current
@@ -321,12 +331,14 @@ class MainActivity : ComponentActivity() {
                             else current.copy(x = current.x + dx / wp, y = current.y + dy / hp).fit()
                         }, false)
                     }
-                    Surface(Modifier.offset { IntOffset((tile.x * wp).roundToInt(), (tile.y * hp).roundToInt()) }.size(width * tile.w, height * tile.h), shape = MaterialTheme.shapes.large, color = Color(0xFF202D27)) {
-                        Column(Modifier.padding(12.dp)) {
+                    val frame = if (editing) Modifier.border(1.dp, Color.White, MaterialTheme.shapes.large) else Modifier
+                    Surface(Modifier.offset { IntOffset((tile.x * wp).roundToInt(), (tile.y * hp).roundToInt()) }.size(width * tile.w, height * tile.h).then(frame), shape = MaterialTheme.shapes.large, color = Color.Black) {
+                        Column(Modifier.padding(if (editing) 8.dp else 4.dp)) {
                             if (editing) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Text("Mover ${if (tile.kind.startsWith("Widget:")) "widget" else tile.kind}", Modifier.weight(1f).heightIn(min = 48.dp).pointerInput(tile.id, wp, hp) {
                                     detectDragGestures(onDragEnd = { latestChange(latestTiles, true) }, onDragCancel = { latestChange(latestTiles, true) }) { change, delta -> change.consume(); update(delta.x, delta.y, false) }
                                 })
+                                if (tile.kind == "Nota") TextButton(onClick = { editingNote = tile.id }) { Text("Editar") }
                                 TextButton(onClick = {
                                     tile.kind.substringAfter("Widget:", "").toIntOrNull()?.let { widgetHost.deleteAppWidgetId(it) }
                                     latestChange(latestTiles.filterNot { it.id == tile.id }, true)
@@ -336,14 +348,12 @@ class MainActivity : ComponentActivity() {
                                 if (tile.kind.startsWith("Widget:")) {
                                     val widgetId = tile.kind.substringAfter(":").toInt()
                                     val info = widgetManager.getAppWidgetInfo(widgetId)
-                                    if (info == null) Text("Widget no disponible. Podés quitarlo en Editar.")
+                                    if (info == null) Text("Widget no disponible. Podés quitarlo en Modo edición.")
                                     else AndroidView(factory = { widgetHost.createView(it, widgetId, info) }, modifier = Modifier.fillMaxSize(), update = { view ->
                                         view.updateAppWidgetSize(null, (width.value * tile.w).toInt(), (height.value * tile.h - 80).toInt().coerceAtLeast(40), (width.value * tile.w).toInt(), (height.value * tile.h - 80).toInt().coerceAtLeast(40))
                                     })
-                                } else if (tile.kind == "Reloj") Column {
-                                    Text(now.format(DateTimeFormatter.ofPattern("HH:mm")), style = MaterialTheme.typography.headlineLarge)
-                                    Text(now.format(DateTimeFormatter.ofPattern("EEEE d MMM")))
-                                } else OutlinedTextField(notes[tile.id] ?: prefs.getString("note-${tile.id}", "").orEmpty(), { notes[tile.id] = it; prefs.edit().putString("note-${tile.id}", it).apply() }, placeholder = { Text("¿Qué necesitás resolver?") }, modifier = Modifier.fillMaxSize(), readOnly = editing)
+                                } else if (tile.kind == "Reloj") DigitalClock()
+                                else NotePreview(notes[tile.id] ?: prefs.getString("note-${tile.id}", "").orEmpty())
                             }
                             if (editing) Text("↘", Modifier.align(Alignment.End).size(48.dp).pointerInput(tile.id, wp, hp) {
                                 detectDragGestures(onDragEnd = { latestChange(latestTiles, true) }, onDragCancel = { latestChange(latestTiles, true) }) { change, delta -> change.consume(); update(delta.x, delta.y, true) }
@@ -352,6 +362,13 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+        if (editing) editingNote?.let { id ->
+            if (tiles.any { it.id == id && it.kind == "Nota" }) NoteEditor(
+                initialText = notes[id] ?: prefs.getString("note-$id", "").orEmpty(),
+                onSave = { value -> notes[id] = value; prefs.edit().putString("note-$id", value).apply(); editingNote = null },
+                onDismiss = { editingNote = null }
+            )
         }
     }
 }

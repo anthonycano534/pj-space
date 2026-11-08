@@ -41,17 +41,18 @@ fun writeMarks(marks:Map<String,ImportantDay>)=JSONObject().apply {marks.forEach
         dismissButton={if(editing)TextButton(onClick=onDismiss){Text("Cancelar")}})
 }
 
-@Composable fun BlockPanel(initial:List<TodoBlock>, editing:Boolean, onChange:(List<TodoBlock>)->Unit) {
+@Composable fun BlockPanel(initial:List<TodoBlock>, editing:Boolean, onEdit:()->Unit, onChange:(List<TodoBlock>)->Unit) {
     var selected by remember{mutableIntStateOf(0)}
     val index=selected.coerceIn(0,(initial.size-1).coerceAtLeast(0));val block=initial.getOrNull(index)
     Column(Modifier.fillMaxSize()) {
+        TextButton(onClick=onEdit,modifier=Modifier.fillMaxWidth().height(44.dp)){Text("Pendientes",style=MaterialTheme.typography.titleLarge)}
         Row(verticalAlignment=Alignment.CenterVertically) {
             TextButton(onClick={selected=(index-1+initial.size)%initial.size.coerceAtLeast(1)},enabled=initial.size>1){Text("‹")}
             Text(block?.name?:"Sin bloques",Modifier.weight(1f),maxLines=1)
             TextButton(onClick={selected=(index+1)%initial.size.coerceAtLeast(1)},enabled=initial.size>1){Text("›")}
         }
         if(block!=null)TodoPanel(block.items,!editing){id->onChange(initial.map{if(it.id==block.id)it.copy(items=it.items.map{task->if(task.id==id)task.copy(done=!task.done)else task})else it})}
-        else Text("Agregá un bloque en Modo edición.")
+        else Text("Tocá Pendientes para agregar un bloque.")
     }
 }
 

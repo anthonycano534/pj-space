@@ -5,7 +5,7 @@ Repositorio: `anthonycano534/pj-space`, público.
 ## Publicación principal actual
 
 1. Subir el código fuente de esta carpeta respetando `.gitignore`.
-2. Crear la versión `v0.1.7` con las notas de `CAMBIOS-0.1.7.md`.
+2. Crear la versión `v0.1.8` con las notas de `CAMBIOS-0.1.8.md`.
 3. Adjuntar el APK comprobado con el nombre **PJSpace.apk**.
 4. Marcarla como la versión más reciente.
 
@@ -22,4 +22,5 @@ Mantener la misma clave de firma permite instalar las actualizaciones sin desins
 No generar APK con una clave de depuración distinta en cada ejecución de GitHub Actions: Android impediría actualizar sobre el APK instalado. Por ahora se publican las compilaciones locales verificadas, firmadas con la misma clave.
 
 Referencia: [enlaces a la última versión y sus descargas](https://docs.github.com/en/repositories/releasing-projects-on-github/linking-to-releases).
+
 

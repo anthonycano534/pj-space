@@ -86,9 +86,9 @@ import java.util.Locale
                 }
                 Text("${(progress*100).toInt()}%",fontSize=11.sp)
             }
-            Column { Text("Pendientes",style=MaterialTheme.typography.titleMedium); Text("${items.count { it.done }} de ${items.size} resueltas",fontSize=12.sp) }
+            Column { Text("Progreso",style=MaterialTheme.typography.titleMedium); Text("${items.count { it.done }} de ${items.size} resueltas",fontSize=12.sp) }
         }
-        if(items.isEmpty()) Text("Agregá tareas en Modo edición.",Modifier.padding(top=12.dp),fontSize=14.sp)
+        if(items.isEmpty()) Text("Tocá Pendientes para agregar tareas.",Modifier.padding(top=12.dp),fontSize=14.sp)
         LazyColumn(Modifier.weight(1f)) {
             items(items,key={it.id}) { task ->
                 Row(Modifier.fillMaxWidth().clickable(enabled=enabled) { onToggle(task.id) }.padding(vertical=8.dp),

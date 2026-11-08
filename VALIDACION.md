@@ -1,3 +1,13 @@
+# Validación de PJ Space 0.1.8
+
+- Compilación final assembleDebug y testDebugUnitTest: correctas, 31 pruebas con cero fallos/errores.
+- Nuevas pruebas: pausa/continuación sin descontar tiempo pausado, finalización solo al vencer, tokens contra alarmas antiguas y duplicadas, transición manual concentración/descanso, reinicio/configuración que invalidan alertas, recuperación tras reinicio del dispositivo, selector de áreas existentes y edición limitada a la elegida.
+- APK: com.pjspace.launcher, versionName 0.1.8, versionCode 10, minSdk 26, targetSdk 36. Permisos de avisos, vibración, alarmas y recuperación de arranque presentes en el APK.
+- Firma comprobada igual a las versiones anteriores: ab3fa8f3ba87a1ea6f58a052b1f9df4f4e4a0c9f5e1a2016c5775db5df039bf3.
+- Revisión de código: PendingIntent explícito e inmutable por componente; estado persistido antes de programar; cancelación al pausar/reiniciar/configurar/eliminar; receptor verifica identidad/estado/vencimiento. No se agrega servicio permanente. UI actualiza la cuenta solo con el ciclo de vida iniciado.
+- Pendientes se edita desde Inicio tocando su título. Los otros editores de escritorio conservan su restricción de Modo edición. La eliminación del secundario 2 usa la lista de componentes de esa página y conserva las claves de las otras dos.
+- No se ejecutó en teléfono ni emulador. No se verificaron entrega real con pantalla apagada, sonido/vibración, reinicio, restricciones de fabricante, diálogo de permisos ni fluidez. Ver la prueba manual de CAMBIOS-0.1.8.md.
+- Lint completo no se volvió a ejecutar: persiste la limitación de dependencias sin conexión registrada para 0.1.7. Los avisos de compilación existentes sobre API de widgets y configuración del SDK no son fallos de esta compilación.
 # Validación de PJ Space 0.1.7
 
 - assembleDebug y testDebugUnitTest completados: 24 pruebas, cero fallos y errores.
@@ -78,4 +88,5 @@
 - Pendiente: prueba visual e interactiva en Android, selección HOME, widgets externos y sus tamaños/configuración, persistencia tras cierre y rotación, accesibilidad y consumo de recursos.
 
 Los archivos se crearon en una carpeta nueva. Se preservaron los proyectos existentes. El emulador se intentó iniciar en modo de solo lectura y sin guardar instantáneas.
+
 

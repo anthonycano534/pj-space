@@ -144,6 +144,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         configureSystemBars()
+        PomodoroAlarms(this).restoreAll()
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         apps = packageManager.queryIntentActivities(intent, 0).map {
             it.loadLabel(packageManager).toString() to ComponentName(it.activityInfo.packageName, it.activityInfo.name)
@@ -222,6 +223,9 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalLayoutApi::class)
     @Composable private fun Home() {
         var editing by remember { mutableStateOf(false) }
+        var editTarget by remember { mutableIntStateOf(CENTRAL_DESKTOP) }
+        var editSelector by remember { mutableStateOf(false) }
+        var deleteExtra by remember { mutableStateOf(false) }
         val focus = LocalFocusManager.current
         val keyboard = LocalSoftwareKeyboardController.current
         LaunchedEffect(editing) { if (!editing) { focus.clearFocus(force = true); keyboard?.hide() } }
@@ -239,7 +243,7 @@ class MainActivity : ComponentActivity() {
         var grid by remember {mutableStateOf(prefs.getBoolean("edit-grid",false))}
         var fixedEditor by remember {mutableStateOf(false)};var fixedRevision by remember {mutableIntStateOf(0)}
         var draftOrder by remember {mutableStateOf<List<String>?>(null)}
-        LaunchedEffect(editing){if(editing)draftOrder=orderedApps().map{it.second.flattenToString()}else draftOrder=null}
+        LaunchedEffect(editing,editTarget){if(editing && editTarget==APPS_DESKTOP)draftOrder=orderedApps().map{it.second.flattenToString()}else draftOrder=null}
         fun finishEditing(){draftOrder?.let{saveAppOrder(it)};editing=false}
         var selectedGesture by remember { mutableStateOf<String?>(null) }
         var selectedShortcut by remember { mutableStateOf<String?>(null) }
@@ -281,8 +285,8 @@ class MainActivity : ComponentActivity() {
         // Always consume Back. At the central desktop it must never finish the HOME activity.
         BackHandler(enabled = true) {
             focus.clearFocus(force = true); keyboard?.hide()
-            when (launcherBackAction(selectedGesture != null || selectedShortcut != null, editing, page == "Ajustes", desktop)) {
-                LauncherBackAction.CLOSE_DIALOG -> { selectedGesture = null; selectedShortcut = null }
+            when (launcherBackAction(selectedGesture != null || selectedShortcut != null || editSelector || deleteExtra, editing, page == "Ajustes", desktop)) {
+                LauncherBackAction.CLOSE_DIALOG -> { selectedGesture = null; selectedShortcut = null;editSelector=false;deleteExtra=false }
                 LauncherBackAction.FINISH_EDITING -> finishEditing()
                 LauncherBackAction.OPEN_HOME -> goTo(CENTRAL_DESKTOP)
                 LauncherBackAction.STAY_HOME -> Unit
@@ -305,6 +309,7 @@ class MainActivity : ComponentActivity() {
                     }
                     item { OutlinedButton(onClick={fixedEditor=true}){Text("Iconos fijos: tamaño y posición")} }
                     item { if(!extra)OutlinedButton(onClick={extra=true;prefs.edit().putBoolean("extra-desktop",true).apply();scope.launch{pager.scrollToPage(desktopPages(true).indexOf(APPS_DESKTOP))}}){Text("Añadir escritorio a la izquierda")} }
+                    item { if(extra)OutlinedButton(onClick={deleteExtra=true}){Text("Eliminar escritorio secundario 2")} }
                     item { Text("Aplicaciones ocultas") }
                     items(apps.filter{it.second.flattenToString() in hidden}) { app -> TextButton(onClick={hidden=hidden-app.second.flattenToString();prefs.edit().putStringSet("hidden-apps",hidden).apply()}){Text("Mostrar: "+(aliases[app.second.flattenToString()]?:app.first))} }
                     item { Text("Accesos de las esquinas inferiores") }
@@ -324,12 +329,12 @@ class MainActivity : ComponentActivity() {
                     val index=pages[pageIndex]
                     if (index == APPS_DESKTOP) {
                         Box(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 80.dp+topInset, bottom = 8.dp+bottomInset)) {
-                            AppList(onOpen = { app -> open(Intent.makeMainActivity(app)); goTo(CENTRAL_DESKTOP) }, isActive = pages[pager.settledPage] == APPS_DESKTOP && !pager.isScrollInProgress, editing=editing,
+                            AppList(onOpen = { app -> open(Intent.makeMainActivity(app)); goTo(CENTRAL_DESKTOP) }, isActive = pages.getOrNull(pager.settledPage) == APPS_DESKTOP && !pager.isScrollInProgress, editing=editsDesktop(editing,editTarget,APPS_DESKTOP),
                                 order=draftOrder, onMove={from,to-> val list=draftOrder?:orderedApps().map{it.second.flattenToString()};draftOrder=moveItem(list,list.indexOf(from),list.indexOf(to))})
                         }
                     } else {
                         DesktopCanvas(
-                            tiles = layouts[index].orEmpty(), editing = editing, grid=grid, onCopy={clipboard=it},
+                            tiles = layouts[index].orEmpty(), editing = editsDesktop(editing,editTarget,index), grid=grid, onCopy={clipboard=it},
                             onTilesChange = { tiles, persist -> updateLayout(index, tiles, persist) },
                             onVerticalGesture = { gesture ->
                                 val component = ComponentName.unflattenFromString(bindings[gesture].orEmpty())
@@ -340,7 +345,7 @@ class MainActivity : ComponentActivity() {
                 }
                 if(desktop==APPS_DESKTOP) {
                     Text("Aplicaciones",Modifier.align(Alignment.TopCenter).padding(top=30.dp+topInset),style=MaterialTheme.typography.titleLarge)
-                    FixedIcon(prefs,"brush",fixedRevision,topInset,bottomInset,onClick={focus.clearFocus(force=true);keyboard?.hide();if(editing)finishEditing()else editing=true}) {LauncherIcon(settings=false,modifier=Modifier.fillMaxSize())}
+                    FixedIcon(prefs,"brush",fixedRevision,topInset,bottomInset,onClick={focus.clearFocus(force=true);keyboard?.hide();editSelector=true}) {LauncherIcon(settings=false,modifier=Modifier.fillMaxSize())}
                     FixedIcon(prefs,"gear",fixedRevision,topInset,bottomInset,onClick={focus.clearFocus(force=true);keyboard?.hide();if(editing)finishEditing();page="Ajustes"}) {LauncherIcon(settings=true,modifier=Modifier.fillMaxSize())}
                 }
                 if(desktop==CENTRAL_DESKTOP) {
@@ -350,15 +355,16 @@ class MainActivity : ComponentActivity() {
                 if (editing) {
                     MovableEditBar(prefs) {
                             TextButton(onClick = { finishEditing() }) { Text("Listo") }
-                            if(desktop!=APPS_DESKTOP) {
+                            if(desktop!=editTarget)TextButton(onClick={scope.launch{pager.animateScrollToPage(pages.indexOf(editTarget))}}){Text("Volver al área de edición")}
+                            if(desktop==editTarget && desktop!=APPS_DESKTOP) {
                             TextButton(onClick={grid=!grid;prefs.edit().putBoolean("edit-grid",grid).apply()}){Text(if(grid)"Cuadrícula ✓"else"Cuadrícula")}
                             TextButton(enabled=clipboard!=null,onClick={clipboard?.let{updateLayout(desktop,layouts[desktop].orEmpty()+it.duplicate("copy-${System.nanoTime()}"))}}){Text("Pegar")}
                             Box {
                                 TextButton(onClick={addingComponent=true}){Text("Añadir componente")}
                                 DropdownMenu(addingComponent,{addingComponent=false}){
-                                    listOf("Nota","Reloj","Barra","Acceso","Calendario","Pendientes").forEach { kind ->
+                                    listOf("Nota","Reloj","Barra","Acceso","Calendario","Pendientes","Pomodoro").forEach { kind ->
                                         DropdownMenuItem(text={Text(kind)},onClick={
-                                            val h=when(kind){"Barra"->.075f;"Acceso"->.14f;"Calendario"->.50f;"Pendientes"->.45f;else->.30f}
+                                            val h=when(kind){"Barra"->.075f;"Acceso"->.14f;"Calendario"->.50f;"Pendientes"->.50f;"Pomodoro"->.36f;else->.30f}
                                             updateLayout(desktop,layouts[desktop].orEmpty()+Tile("${kind.lowercase()}-$desktop-${System.nanoTime()}",kind,.05f,.12f,if(kind=="Acceso").24f else .90f,h,iconKey=if(kind=="Acceso")"star"else null,label=if(kind=="Barra")"Busca..."else null).fit())
                                             addingComponent=false
                                         })
@@ -389,6 +395,20 @@ class MainActivity : ComponentActivity() {
                 selectedShortcut = null
             })
         }
+        if(editSelector)AlertDialog(onDismissRequest={editSelector=false},title={Text("¿Qué querés editar?")},text={Column {
+            editingOptions(extra).forEach{(target,label)->TextButton(modifier=Modifier.fillMaxWidth(),onClick={
+                focus.clearFocus(force=true);keyboard?.hide();finishEditing();editTarget=target
+                draftOrder=if(target==APPS_DESKTOP)orderedApps().map{it.second.flattenToString()}else null
+                editSelector=false;editing=true;scope.launch{pager.scrollToPage(pages.indexOf(target))}
+            }){Text(label)}}
+        }},confirmButton={},dismissButton={TextButton(onClick={editSelector=false}){Text("Cancelar")}})
+        if(deleteExtra)AlertDialog(onDismissRequest={deleteExtra=false},title={Text("¿Eliminar el escritorio secundario 2?")},text={Text("Se borrarán sus componentes, notas, bloques y temporizadores. El principal y el secundario 1 se conservarán.")},
+            confirmButton={TextButton(onClick={deleteExtra=false;finishEditing();scope.launch {
+                pager.scrollToPage(pages.indexOf(CENTRAL_DESKTOP))
+                layouts[EXTRA_DESKTOP].orEmpty().forEach{deleteComponentData(it)}
+                updateLayout(EXTRA_DESKTOP,emptyList());prefs.edit().putBoolean("extra-desktop",false).apply();extra=false
+                pager.scrollToPage(desktopPages(false).indexOf(CENTRAL_DESKTOP))
+            }}){Text("Eliminar escritorio")}},dismissButton={TextButton(onClick={deleteExtra=false}){Text("Cancelar")}})
         if(fixedEditor)FixedIconsEditor(prefs,onDismiss={fixedEditor=false},onSaved={fixedRevision++;fixedEditor=false})
 
     }
@@ -474,6 +494,12 @@ class MainActivity : ComponentActivity() {
             dismissButton={TextButton(onClick={release();onDismiss()}){Text("Cancelar")}})
     }
 
+    private fun deleteComponentData(tile:Tile) {
+        tile.kind.substringAfter("Widget:","").toIntOrNull()?.let{widgetHost.deleteAppWidgetId(it)}
+        if(tile.kind=="Pomodoro")PomodoroAlarms(this).delete(tile.id)
+        prefs.edit().apply{listOf("note-","todos-","blocks-","calendar-","clock-label-","clock-app-").forEach{remove(it+tile.id)}}.apply()
+    }
+
     @Composable private fun DesktopCanvas(tiles:List<Tile>,editing:Boolean,grid:Boolean,onCopy:(Tile)->Unit,onTilesChange:(List<Tile>,Boolean)->Unit,onVerticalGesture:(String)->Unit) {
         val latestTiles by rememberUpdatedState(tiles);val latestChange by rememberUpdatedState(onTilesChange);val latestGesture by rememberUpdatedState(onVerticalGesture)
         val notes=remember{mutableStateMapOf<String,String>()};val blocks=remember{mutableStateMapOf<String,List<TodoBlock>>()}
@@ -485,12 +511,13 @@ class MainActivity : ComponentActivity() {
         val focus=LocalFocusManager.current;val keyboard=LocalSoftwareKeyboardController.current
         fun closeEditor(){focus.clearFocus(force=true);keyboard?.hide();editorId=null;selectedDay=null}
         fun replace(tile:Tile){latestChange(latestTiles.map{if(it.id==tile.id)tile else it},true)}
-        fun remove(id:String){latestTiles.find{it.id==id}?.kind?.substringAfter("Widget:","")?.toIntOrNull()?.let{widgetHost.deleteAppWidgetId(it)};latestChange(latestTiles.filterNot{it.id==id},true);closeEditor()}
+        fun remove(id:String){latestTiles.find{it.id==id}?.let{deleteComponentData(it)};latestChange(latestTiles.filterNot{it.id==id},true);closeEditor()}
         fun launchTile(tile:Tile){
             val component=ComponentName.unflattenFromString(tile.appComponent.orEmpty())
             if(component!=null)open(Intent.makeMainActivity(component))else Toast.makeText(this,"Elegí una app en Modo edición → Editar",Toast.LENGTH_SHORT).show()
         }
         LaunchedEffect(editing){if(!editing)closeEditor()}
+        LaunchedEffect(homeRequest){closeEditor()}
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val width=maxWidth;val height=maxHeight;val density=LocalDensity.current
             val wp=with(density){width.toPx()}.coerceAtLeast(1f);val hp=with(density){height.toPx()}.coerceAtLeast(1f)
@@ -501,12 +528,12 @@ class MainActivity : ComponentActivity() {
             if(editing&&grid)Canvas(Modifier.fillMaxSize()){for(i in 1 until 20){drawLine(Color.White.copy(alpha=.14f),androidx.compose.ui.geometry.Offset(size.width*i/20,0f),androidx.compose.ui.geometry.Offset(size.width*i/20,size.height));drawLine(Color.White.copy(alpha=.14f),androidx.compose.ui.geometry.Offset(0f,size.height*i/20),androidx.compose.ui.geometry.Offset(size.width,size.height*i/20))}}
             tiles.forEach { tile -> key(tile.id) {
                 fun update(dx:Float,dy:Float,resize:Boolean){latestChange(latestTiles.map{current->if(current.id!=tile.id)current else if(resize)current.copy(w=current.w+dx/wp,h=current.h+dy/hp).fit()else current.copy(x=current.x+dx/wp,y=current.y+dy/hp).fit()},false)}
-                val decorated=editing||tile.kind in listOf("Nota","Calendario","Pendientes")
+                val decorated=editing||tile.kind in listOf("Nota","Calendario","Pendientes","Pomodoro")
                 val shape=MaterialTheme.shapes.large
                 val frame=if(decorated)Modifier.border(1.dp,Color.White,shape)else Modifier
                 Surface(Modifier.offset{IntOffset((tile.x*wp).roundToInt(),(tile.y*hp).roundToInt())}.size(width*tile.w,height*tile.h).then(frame),shape=shape,color=Color.Black) {
                     Box(Modifier.fillMaxSize()) {
-                        Box(Modifier.fillMaxSize().padding(if(tile.kind in listOf("Nota","Calendario","Pendientes"))12.dp else 4.dp)) {
+                        Box(Modifier.fillMaxSize().padding(if(tile.kind in listOf("Nota","Calendario","Pendientes","Pomodoro"))12.dp else 4.dp)) {
                             when {
                                 tile.kind.startsWith("Widget:") -> {
                                     val id=tile.kind.substringAfter(":").toInt();val info=widgetManager.getAppWidgetInfo(id)
@@ -523,14 +550,15 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                                 tile.kind=="Calendario" -> MonthlyCalendar(getMarks(tile.id),editing){selectedDay=tile.id to it}
-                                tile.kind=="Pendientes" -> BlockPanel(getBlocks(tile.id),editing){setBlocks(tile.id,it)}
+                                tile.kind=="Pendientes" -> BlockPanel(getBlocks(tile.id),editing,onEdit={editorId=tile.id}){setBlocks(tile.id,it)}
+                                tile.kind=="Pomodoro" -> PomodoroComponent(tile.id,editing){editorId=tile.id}
                                 else -> NotePreview(notes[tile.id]?:prefs.getString("note-${tile.id}","").orEmpty(),componentFontSize(tile.kind,tile.fontSizeSp),tile.textAlignment,tile.fontFamily)
                             }
                         }
                         if(editing) {
                             Row(Modifier.align(Alignment.TopStart).fillMaxWidth().background(Color.Black.copy(alpha=.9f)),verticalAlignment=Alignment.CenterVertically) {
                                 Text("↕",fontSize=20.sp,modifier=Modifier.size(32.dp).pointerInput(tile.id,wp,hp,grid){detectDragGestures(onDragEnd={latestChange(if(grid)latestTiles.map{if(it.id==tile.id)it.snapped()else it}else latestTiles,true)},onDragCancel={latestChange(if(grid)latestTiles.map{if(it.id==tile.id)it.snapped()else it}else latestTiles,true)}){change,delta->change.consume();update(delta.x,delta.y,false)}})
-                                if(tile.kind in listOf("Nota","Reloj","Barra","Acceso","Pendientes"))TextButton(onClick={editorId=tile.id},contentPadding=PaddingValues(0.dp),modifier=Modifier.height(32.dp).width(40.dp)){Text("Editar",fontSize=11.sp)}
+                                if(tile.kind in listOf("Nota","Reloj","Barra","Acceso","Pendientes","Pomodoro"))TextButton(onClick={editorId=tile.id},contentPadding=PaddingValues(0.dp),modifier=Modifier.height(32.dp).width(40.dp)){Text("Editar",fontSize=11.sp)}
                                 if(tile.kind !in listOf("Barra","Acceso"))TextButton(onClick={remove(tile.id)},contentPadding=PaddingValues(0.dp),modifier=Modifier.size(32.dp)){Text("×")}
                             }
                             Text("↘",fontSize=24.sp,modifier=Modifier.align(Alignment.BottomEnd).size(32.dp).background(Color.Black).pointerInput(tile.id,wp,hp,grid){detectDragGestures(onDragEnd={latestChange(if(grid)latestTiles.map{if(it.id==tile.id)it.snapped()else it}else latestTiles,true)},onDragCancel={latestChange(if(grid)latestTiles.map{if(it.id==tile.id)it.snapped()else it}else latestTiles,true)}){change,delta->change.consume();update(delta.x,delta.y,true)}})
@@ -539,10 +567,11 @@ class MainActivity : ComponentActivity() {
                 }
             } }
         }
-        if(editing)editorId?.let { id -> latestTiles.find{it.id==id}?.let { tile -> when(tile.kind) {
+        editorId?.let { id -> latestTiles.find{it.id==id}?.takeIf{editing || it.kind in listOf("Pendientes","Pomodoro")}?.let { tile -> when(tile.kind) {
             "Nota" -> NoteEditor(notes[id]?:prefs.getString("note-$id","").orEmpty(),componentFontSize("Nota",tile.fontSizeSp),tile.textAlignment,tile.fontFamily,onSave={text,size,alignment,family->notes[id]=text;prefs.edit().putString("note-$id",text).apply();replace(tile.copy(fontSizeSp=size,textAlignment=alignment,fontFamily=family));closeEditor()},onDismiss={closeEditor()})
             "Reloj" -> ClockEditor(componentFontSize("Reloj",tile.fontSizeSp),onSave={replace(tile.copy(fontSizeSp=it));closeEditor()},onDismiss={closeEditor()})
             "Barra","Acceso" -> AppTileEditor(tile,onSave={replace(it);closeEditor()},onDismiss={closeEditor()},onDelete={remove(id)},onCopy={onCopy(tile);closeEditor()})
+            "Pomodoro" -> PomodoroEditor(id,onDismiss={closeEditor()})
             "Pendientes" -> BlocksEditor(getBlocks(id),onSave={setBlocks(id,it);closeEditor()},onDismiss={closeEditor()})
         } } }
         selectedDay?.let{(id,date)->ImportantDayDialog(date,getMarks(id)[date.toString()],editing,onSave={value->val updated=if(value==null)getMarks(id)-date.toString()else getMarks(id)+(date.toString() to value);marks[id]=updated;prefs.edit().putString("calendar-$id",writeMarks(updated)).apply();focus.clearFocus(force=true);keyboard?.hide();selectedDay=null},onDismiss={focus.clearFocus(force=true);keyboard?.hide();selectedDay=null})}
